@@ -16,19 +16,18 @@ DIRECTIONS = [a for a in range(0, 5)]
 CARDINALS = [a for a in range(1, 5)]
 
 ATTACK = 0
+import hashlib
 STOP_ATTACK = 1
 
 location_cache = {}
 
 class Location:
 	def __init__(self, x=0, y=0):
-		self.real_x = x
-		self.real_y = y
-		self.x = int(round(x))
-		self.y = int(round(y))
+		self.x = x
+		self.y = y
 	
 	def getRealCenter(self):
-		return (self.real_x,self.real_y)
+		return (self.x,self.y)
 	
 	def __str__(self):
 		return str((self.x,self.y))
@@ -37,11 +36,11 @@ class Location:
 		return self.x == loc.x and self.y == loc.y
 		
 	def __hash__(self):
-		key = str(self.x) + "," + str(self.y)
-		ikey = ""
-		for c in key:
-			ikey += str(ord(c))
-		return int(ikey)
+		return hash(','.join(["%i"% self.x,"%i"% self.y]))
+		#ikey = ""
+		#for c in key:
+		#	ikey += str(ord(c))
+		#return int(ikey)
 
 class Site:
 	def __init__(self, owner=0, strength=0, production=0, friends = [], neutrals = 4, enemies = [], loc = None):
@@ -108,7 +107,7 @@ class Territory:
 		if not self.center:
 			center_y = self.map.row_counts[self.owner].index(max(self.map.row_counts[self.owner]))
 			center_x = self.map.col_counts[self.owner].index(max(self.map.col_counts[self.owner]))
-			self.center = Location(center_x, center_y)
+			self.center = self.map.getLocationXY(center_x, center_y)
 		return self.center
 		
 	def getFrontier(self):
@@ -140,7 +139,8 @@ class GameMap:
 		for y in range(0, self.height):
 			row = []
 			for x in range(0, self.width):
-				row.append(Site(0, 0, 0, loc = Location(x,y)))
+				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
+				row.append(Site(0, 0, 0, loc = self.getLocationXY(x,y)))
 			self.contents.append(row)
 	
 	def inBounds(self, l):
@@ -171,6 +171,12 @@ class GameMap:
 		
 	def getColumn(self, x):
 		return [r[x] for r in self.contents]
+		
+	def getAngleD(self, angle):
+		angle = math.degrees(angle)
+		if angle < 0:
+			angle += 360
+		return angle
 
 	def getAngle(self, l1, l2):
 	
@@ -200,41 +206,41 @@ class GameMap:
 			dir = NORTH
 		return dir
 
-	def cacheLocation(self, loc, direction):
-		loc_key = "%s,%s" % (loc.x, loc.y)
+	def getLocation(self, loc, direction = STILL):
+		return self.getLocationXY(loc.x, loc.y, direction)
+	
+	def getLocationXY(self, x, y, direction = STILL):
+		loc_key = ','.join(["%i"% x,"%i"% y])
 		#logger.debug(str(len(location_cache)) + " " + loc_key)
 		if not location_cache.get(loc_key):
 			location_cache[loc_key] = {}
 		if not location_cache[loc_key].get(direction):
-			l = copy.deepcopy(loc)
 			if direction != STILL:
 				if direction == NORTH:
-					if l.y == 0:
-						l.y = self.height - 1
+					if y == 0:
+						y = self.height - 1
 					else:
-						l.y -= 1
+						y -= 1
 				elif direction == EAST:
-					if l.x == self.width - 1:
-						l.x = 0
+					if x == self.width - 1:
+						x = 0
 					else:
-						l.x += 1
+						x += 1
 				elif direction == SOUTH:
-					if l.y == self.height - 1:
-						l.y = 0
+					if y == self.height - 1:
+						y = 0
 					else:
-						l.y += 1
+						y += 1
 				elif direction == WEST:
-					if l.x == 0:
-						l.x = self.width - 1
+					if x == 0:
+						x = self.width - 1
 					else:
-						l.x -= 1
-			location_cache[loc_key][direction] = l
-#			logger.debug("Caching %s -> %s: %s" %(loc, direction, l))
+						x -= 1
+				location_cache[loc_key][direction] = self.getLocationXY(x,y)
+			else:
+				location_cache[loc_key][STILL] = Location(x,y)
+		return location_cache[loc_key][direction]
 		
-	def getLocation(self, loc, direction):
-		l = location_cache[str(loc.x) + "," + str(loc.y)][direction]
-		#logger.debug("Cache hit %s -> %s: %s" %(loc, direction, l))
-		return l
 		
 	def getSite(self, l, direction = STILL):
 		#logger.debug("getSite")
@@ -295,7 +301,7 @@ class GameMap:
 				column = row[j]
 				
 				#### This sets the display value of the map
-				l = Location(j,i)
+				l = self.getLocationXY(j,i)
 				if l in t.fringe:
 					column = "___"
 				elif l in t.frontier:

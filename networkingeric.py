@@ -19,6 +19,16 @@ hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
 map_logger.addHandler(hdlr)
 
+
+
+test_inputs = [
+"1 0 1 2 1 1 1 0 108 176 176 108 ",
+"2 0 1 1 1 2 236 236 80 80 ",
+"14 14 5 5",
+"2 2",
+"1"
+]
+
 _productions = []
 _width = -1
 _height = -1
@@ -58,6 +68,7 @@ def increment_neighbors(map, loc, owner):
 		type = "friends"
 	else: 
 		type = "enemies"
+#	logger.debug("Found %s at %s" % (type, loc) )
 	try:
 		for dir in CARDINALS:
 			#map_logger.debug("loc %s, dir %s" % (loc, dir))
@@ -85,8 +96,10 @@ def deserializeMap(m, inputString):
 		owner = int(splitString.pop(0))
 		
 		for a in range(0, counter):
+			#logger.debug("%s,%s" % (y,x))
 			m.contents[y][x].owner = owner
-			loc = Location(x,y)
+			#logger.debug("Retrieving Loc")
+			loc = m.getLocationXY(x,y)
 			increment_neighbors(m, loc, owner)
 			if owner > 0:
 				m.updateCounts(owner, loc)
@@ -110,21 +123,29 @@ def sendString(toBeSent):
 	sys.stdout.write(toBeSent)
 	sys.stdout.flush()
 
+def getStringTest():
+	s = test_inputs.pop()
+	#logger.debug("Got String(): %s" % s)
+	return s
+	
 def getString():
 	return sys.stdin.readline().rstrip('\n')
 
-def getInit():
+def getInit(getString=getString):
 	global playerTag
 	playerTag = int(getString())
 	deserializeMapSize(getString())
 	deserializeProductions(getString())
-	map_logger.debug("Caching map relations")
+	logger.debug("Finished Map init")
 	m = GameMap(_width, _height, playerTag = playerTag)
+	
+	logger.debug("Caching map relations")
 	for y in range(m.height):
 		for x in range(m.width):
 			l = Location(x,y)
-			for dir in DIRECTIONS:
-				m.cacheLocation(l, dir)
+			for dir in CARDINALS:
+				m.getLocation(l, dir)
+	
 	deserializeMap(m, getString())
 	
 
@@ -142,3 +163,15 @@ def getFrame():
 
 def sendFrame(moves):
 	sendString(serializeMoveSet(moves))
+	
+def testBot():
+	myID, gameMap = getInit(getStringTest)
+	global _productions
+	global _width
+	global _height
+	global playerTag
+	_productions = []
+	_width = -1
+	_height = -1	
+	playerTag = -1
+	

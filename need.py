@@ -1,5 +1,6 @@
-from hlteric import *
-from networkingeric import *
+from hlt2 import *
+from networking2 import *
+from moves import *
 import logging
 need_logger = logging.getLogger('need')
 base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
@@ -8,7 +9,7 @@ hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
 need_logger.addHandler(hdlr)
-need_logger.setLevel(logging.DEBUG)
+need_logger.setLevel(logging.ERROR)
 import copy
 
 
@@ -19,28 +20,28 @@ class Need:
 		self.site = site
 		self.production = 0
 		self.strength = 0
-#		need_logger.debug("Need %s for %s at %s" % (site.strength, site.production,site.loc))
+		need_logger.debug("Need %s for %s at %s" % (site.strength, site.production,site.loc))
 		
 	def is_satisfied(self):
 		met = self.strength > self.site.strength
-#		need_logger.debug("Help %s > Need %s? %s" %(self.strength, self.site.strength, met))
+		need_logger.debug("Help %s > Need %s? %s" %(self.strength, self.site.strength, met))
 		return met
 	
 	def check_generation(self, generation, already_used, loc_pool):
 		next_gen = []
 		this_gen = []
-		d = dict(generation)
 		met = None
 #		need_logger.debug("Already used: %s" % already_used)
 #		need_logger.debug("Generation: %s" % d)
-		for loc, dir in generation:
-			site = self.gameMap.getSite(loc)
-			self.apply_help(loc, site)
-			this_gen.append((loc, dir))
+		for move in generation:
+			site = self.gameMap.getSite(move.loc)
+			self.apply_help(move.loc, site)
+			this_gen.append(move)
 			
-			for f in site.friends:
-				if not f[0] in [used[0] for used in already_used] and f[0] in loc_pool:
-					next_gen.append(f)
+			
+			for friend_move in site.friends:
+				if not friend_move.loc in [used.loc for used in already_used] and not friend_move.loc in [used.loc for used in next_gen] and friend_move.loc in loc_pool:
+					next_gen.append(friend_move)
 			met = self.is_satisfied()
 			if met:
 				break
@@ -48,11 +49,16 @@ class Need:
 		
 		
 	def get_moves(self, loc_pool):
-		gen = [f for f in self.site.friends if f[0] in loc_pool]
-		first_gen = copy.copy(gen)
-		
-#		need_logger.debug("Loc Pool: %s" % loc_pool)
+		gen = []
 		already_used = []
+		
+		# This sets up the base generation from the location we are targeting
+		for friend_move in self.site.friends:
+			if not friend_move.loc in [used.loc for used in already_used] and not friend_move.loc in [used.loc for used in gen] and friend_move.loc in loc_pool:
+				gen.append(friend_move)
+		
+		need_logger.debug("Seed gen: %s" % debug_list(gen) )
+		need_logger.debug("Loc Pool: %s" % debug_list(loc_pool) )
 		while len(gen) > 0:
 			satisfied, this_gen, next_gen = self.check_generation(gen, already_used, loc_pool)
 			first = False
@@ -60,18 +66,21 @@ class Need:
 #				need_logger.debug("Can capture!, using moves")
 #				need_logger.debug("Used up moves:")
 #				for m in already_used:
-##					need_logger.debug("%s->%s" % (m[0], STILL))
+##					need_logger.debug("%s->%s" % (m.loc, STILL))
 #				for m in this_gen:
-#					need_logger.debug("%s->%s" % (m[0], m[1]))
-				return [Move(m[0], STILL) for m in already_used] + [Move(m[0],m[1]) for m in this_gen]
+#					need_logger.debug("%s->%s" % (m.loc, m.direction))
+				need_logger.debug("Satisfied! %s" % debug_list(this_gen))
+				return [Move(m.loc, STILL) for m in already_used] + this_gen
 			else:
+				need_logger.debug("Mid gen: %s" % debug_list(this_gen))
 				already_used.extend(this_gen)
+				need_logger.debug("Already_used list: %s" % debug_list(already_used))
 				self.strength += self.production
 				gen = next_gen
-		return [Move(m[0], STILL) for m in already_used]
+		return [Move(m.loc, STILL) for m in already_used]
 		
 	def apply_help(self, loc, site):
-#		need_logger.debug("Maybe lending %s from %s" % (site.strength,loc))
+		need_logger.debug("Pledged %s from %s" % (site.strength,loc))
 		
 		self.production += site.production
 		self.strength += site.strength

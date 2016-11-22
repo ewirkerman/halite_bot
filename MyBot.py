@@ -1,5 +1,6 @@
-from hlteric import *
-from networkingeric import *
+from hlt2 import *
+from networking2 import *
+from moves import *
 import logging
 from math import pi
 from need import Need
@@ -204,10 +205,10 @@ contacted = False
 def main():
 	global turnCounter
 	global gameMap
-	moves = []
+	
+	turnCounter += 1
 	logger.debug("****** PREP TURN %d ******" % turnCounter)
 	gameMap = getFrame()
-	turnCounter += 1
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
 	t = gameMap.getTerritory(myID)
@@ -221,14 +222,12 @@ def main():
 	#for f in t.fringe:
 	#	logger.debug(f)
 	
-	t.unmoved = copy.copy(t.territory)
 	#logger.debug("Initial moves: %s" % t.unmoved)
 	
-	
+	mf = MoveFork(gameMap, t.territory)
 	n = Attack(gameMap)
-	mvs = n.get_moves(t.fringe, t.frontier, t.unmoved, turnCounter)
-	t.unmoved -= set([m.loc for m in mvs])
-	moves.extend(mvs)
+	moves = n.get_moves(t.fringe, t.frontier, mf.get_unused_moves(), turnCounter)
+	mf.submit_moves(moves)
 	
 	### This is the Need-based assist pattern
 	sorted_fringe = sorted(t.fringe, key=evaluateSite)
@@ -236,14 +235,8 @@ def main():
 	for loc in sorted_fringe:
 		site = gameMap.getSite(loc)
 		n = Need(site, gameMap)
-		mvs = n.get_moves(t.unmoved)
-			
-		#if len(site.enemies) > 0:
-		#	logger.debug("Near an enemy, so reverting to killbot")
-		#	moves.clear()
-		#	break
-		t.unmoved -= set([m.loc for m in mvs])
-		moves.extend(mvs)
+		moves = n.get_moves( mf.get_unused_moves())
+		mf.submit_moves(moves)
 		
 		
 	## Maybe we will let them go into the needs before they are ready if and only if they are adjacent to an emeny and then also make those squares
@@ -270,7 +263,7 @@ def main():
 	
 	
 	### This is the natural killbot code
-	for loc in t.unmoved:
+	for loc in mf.get_unused_moves():
 		#logger.debug("Activate Killbot!")
 		dir = getDirForSquare(gameMap, loc)
 		m = Move(loc, dir)
@@ -278,20 +271,24 @@ def main():
 		gameMap.updateMap(m)
 				
 					
-	sendFrame(moves)
+	mf.output_all_moves()
 	gameMap.clearTerritories()
 
 testBot()
 		
 		
-myID, gameMap = getInit(getString)
+try:
+	myID, gameMap = getInit(getString)
+except Exception as e:
+	with open("bot.debug", "a") as f:
+		f.write(e)
 sendInit("MyPythonBot")
 
-turnCounter = 0
+turnCounter = -1
 
 def main_loop():
 	while True:
 		main()
 #		cProfile.run('main()', 'stats\mybot-turn%s.stats' % turnCounter)
-#cProfile.run('main_loop()', 'stats\mybot.stats')
+cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

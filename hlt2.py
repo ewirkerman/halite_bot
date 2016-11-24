@@ -47,7 +47,7 @@ class Site:
 		self.strength = strength
 		self.production = production
 		self.friends = []
-		self.neutrals = neutrals
+		self.neutrals = []
 		self.enemies = []
 		self.loc = loc
 	
@@ -267,11 +267,6 @@ class GameMap:
 				if frontier:
 					t.addFrontier(loc)
 					#logger.debug("New frontier: %s" % loc)
-		
-	def updateMap(self, move):
-		s = self.getSite(move.loc).strength 
-		self.getSite(move.loc).strength = 0
-		self.getSite(move.loc, move.direction).strength += s
 		
 	def mapToStr(self, center):
 		s = "\n"

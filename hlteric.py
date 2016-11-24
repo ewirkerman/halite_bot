@@ -281,7 +281,7 @@ class GameMap:
 	def updateMap(self, move):
 		s = self.getSite(move.loc).strength 
 		self.getSite(move.loc).strength = 0
-		self.getSite(move.loc, move.direction).strength += s
+		self.getSite(move.loc, move.getDirections()[0]).strength += s
 		
 	def mapToStr(self, center):
 		s = "\n"

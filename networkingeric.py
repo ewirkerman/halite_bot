@@ -37,7 +37,7 @@ playerTag = -1
 def serializeMoveSet(moves):
 	returnString = ""
 	for move in moves:
-		returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.direction) + " "
+		returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()[0]) + " "
 	return returnString
 
 def deserializeMapSize(inputString):

@@ -6,10 +6,9 @@ from ctypes import *
 import sys
 import logging
 import traceback
+from random import shuffle
 
-bot_logger = logging.getLogger('bot')
 map_logger = logging.getLogger('map')
-map_logger.setLevel(logging.DEBUG)	
 
 base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
 log_file_name = 'bot.debug'
@@ -17,8 +16,7 @@ hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
 map_logger.addHandler(hdlr)
-
-
+map_logger.setLevel(logging.ERROR)	
 
 test_inputs = [
 "1 0 1 2 1 1 1 0 108 176 176 108 ",
@@ -28,6 +26,7 @@ test_inputs = [
 "1"
 ]
 
+rng_CARDINALS = copy.copy(CARDINALS)
 _productions = []
 _width = -1
 _height = -1
@@ -36,7 +35,7 @@ playerTag = -1
 def serializeMoveSet(moves):
 	returnString = ""
 	for move in moves:
-		returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.direction) + " "
+		returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()) + " "
 	return returnString
 
 def deserializeMapSize(inputString):
@@ -55,45 +54,37 @@ def deserializeProductions(inputString):
 			row.append(int(splitString.pop(0)))
 		_productions.append(row)
 		
-def mark_neighbors(map, loc, type, done_set = None):
-
-	if not done_set:
-		done_set = set()
-	else:
-		for d in done_set:
-			logger.debug("Already spread:")
-	for dir in CARDINALS:
+def mark_neighbors(map, loc, type):
+	shuffle(rng_CARDINALS)
+	for dir in rng_CARDINALS:
 		#map_logger.debug("loc %s, dir %s" % (loc, dir))
 		new_loc = map.getLocation(loc, dir)
 		#map_logger.debug("Found %s" % new_loc)
 		new_site = map.getSite(new_loc)
-		reverse_dir = (((dir - 1) + 2) % 4) + 1
 		type_list = getattr(new_site, type).append(Move(loc, dir))
-		new_site.neutrals = new_site.neutrals - 1
 		#logger.debug("Marked %s with %s, o=%s, s=%s" % (new_loc, type, new_site.owner, new_site.owner) )
-		if len(test_inputs) == 0:
-			if type == "enemies" and new_site.owner == 0 and new_site.strength == 0 and not new_loc in done_set:
-				logger.debug("Spreading enemies through %s" % new_loc)
-				done_set.add(new_loc)
-				mark_neighbors(map, new_loc, type, done_set)
+		if type == "friends" and new_site.owner == 0:
+			increment_neighbors(map, loc, "neutrals")
 
 def increment_neighbors(map, loc, owner):
-	if owner == 0:
-		return
 	#map_logger.debug("Updating neighbors of %s" % (loc))
 	curr_site = map.getSite(loc)
+	if owner != playerTag:
+		return
 	t = map.getTerritory(owner)
 	t.addLocation(loc)
 	
 	if owner == playerTag:
 		type = "friends"
-	else: 
+	elif owner == 0: 
+		type = "neutrals"
+	else:
 		type = "enemies"
-#	logger.debug("Found %s at %s" % (type, loc) )
+	#map_logger.debug("Found %s at %s" % (type, loc) )
 	mark_neighbors(map, loc, type)
 
 def deserializeMap(m, inputString):
-	logger.debug("DeserializING MAP")
+	logger.debug("Deserializing board")
 	splitString = inputString.split(" ")
 
 
@@ -106,12 +97,12 @@ def deserializeMap(m, inputString):
 		owner = int(splitString.pop(0))
 		
 		for a in range(0, counter):
-			#logger.debug("%s,%s" % (y,x))
+			#map_logger.debug("%s,%s" % (y,x))
 			m.contents[y][x].owner = owner
-			#logger.debug("Retrieving Loc")
+			#map_logger.debug("Retrieving Loc")
 			loc = m.getLocationXY(x,y)
-			increment_neighbors(m, loc, owner)
 			if owner > 0:
+				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
 				m.getTerritory(owner).addLocation(loc)
 			x += 1
@@ -136,7 +127,7 @@ def sendString(toBeSent):
 
 def getStringTest():
 	s = test_inputs.pop()
-	#logger.debug("Got String(): %s" % s)
+	#map_logger.debug("Got String(): %s" % s)
 	return s
 	
 def getString():
@@ -147,10 +138,10 @@ def getInit(getString=getString):
 	playerTag = int(getString())
 	deserializeMapSize(getString())
 	deserializeProductions(getString())
-	logger.debug("Finished Map init")
+	map_logger.debug("Finished Map init")
 	m = GameMap(_width, _height, playerTag = playerTag)
 	
-	logger.debug("Caching map relations")
+	map_logger.debug("Caching map relations")
 	for y in range(m.height):
 		for x in range(m.width):
 			l = Location(x,y)

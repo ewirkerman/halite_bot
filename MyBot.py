@@ -2,10 +2,12 @@ from hlt2 import *
 from networking2 import *
 from moves import *
 import logging
+import time
 from math import pi
-from need import Need
+from need import *
 from attack import Attack
 import cProfile
+import pstats
 import os
 
 
@@ -203,6 +205,7 @@ def getExpansiveDir(gameMap, loc):
 gameMap = None
 contacted = False
 def main():
+	clock = time.clock()
 	global turnCounter
 	global gameMap
 	
@@ -213,7 +216,7 @@ def main():
 	
 	t = gameMap.getTerritory(myID)
 	center = t.getCenter()
-	logger.debug(gameMap.mapToStr(t.getCenter()))
+	#logger.debug(gameMap.mapToStr(t.getCenter()))
 	#logger.debug("My center: \t%s" % str(t.getCenter().getRealCenter()))
 	#logger.debug("My frontier: ")
 	#for f in t.frontier:
@@ -223,56 +226,44 @@ def main():
 	#	logger.debug(f)
 	
 	#logger.debug("Initial moves: %s" % t.unmoved)
-	
 	mf = MoveFork(gameMap, t.territory)
-	n = Attack(gameMap)
-	moves = n.get_moves(t.fringe, t.frontier, mf.get_unused_moves(), turnCounter)
-	mf.submit_moves(moves)
 	
 	### This is the Need-based assist pattern
 	sorted_fringe = sorted(t.fringe, key=evaluateSite)
 	sorted_fringe.reverse()
-	for loc in sorted_fringe:
-		site = gameMap.getSite(loc)
-		n = Need(site, gameMap)
-		moves = n.get_moves( mf.get_unused_moves())
-		mf.submit_moves(moves)
-		
-		
-	## Maybe we will let them go into the needs before they are ready if and only if they are adjacent to an emeny and then also make those squares
-	# the first ones on the fringe and maybe inflate the strength of the Need so it pulls enough
+	for loc in sorted_fringe[:]:
+		try:
+			site = gameMap.getSite(loc)
+			n = Need(site, gameMap)
+			moves = n.get_moves( mf.get_unused_moves())
+			mf.submit_moves(moves)
+		except NeedError:
+			pass
+	
+	#logger.debug("Need map: " + getMoveMap(gameMap,mf.move_list))
+	#logger.debug("Remaining moves: %s" % debug_list(mf.get_unused_moves()))
 	
 	
-	#unm = copy.copy(t.unmoved)
-	#for loc in unm:
-	#	t.unmoved.remove(loc)
-	#	dir = getExpansiveDir(gameMap, loc)
-	#	m = Move(loc, dir)
-	#	moves.append(m)
-	#	gameMap.updateMap(m)
+	fronts = [f for f in t.fringe if gameMap.getSite(f).strength == 0]
+	if len(fronts) == 0:
+		fronts = t.fringe
 	
-	### This is the square expansion that I don't really care for
-	#for loc in t.fringe:
-	#	lib_moves = liberate(gameMap, t, loc)
-	#	logger.debug("Remaining moves:")
-	#	for u in t.unmoved:
-	#		logger.debug(u)
-	#	moves.extend(lib_moves)
-	#	move_set = [move.loc for move in lib_moves]
+	n = Attack(gameMap)
+	moves = n.get_moves(fronts, [], mf.get_unused_moves(), turnCounter)
+	#logger.debug("Attack Map: " + getMoveMap(gameMap,moves))
+	mf.submit_moves(moves)
 	
 	
+	# n = Attack(gameMap)
+	# moves = n.get_moves([f for f in t.fringe if gameMap.getSite(f).strength != 0], t.frontier, mf.get_unused_moves(), turnCounter)
+	# #logger.debug(getMoveMap(gameMap,moves))
+	# mf.submit_moves(moves)
 	
-	### This is the natural killbot code
-	for loc in mf.get_unused_moves():
-		#logger.debug("Activate Killbot!")
-		dir = getDirForSquare(gameMap, loc)
-		m = Move(loc, dir)
-		moves.append(m)
-		gameMap.updateMap(m)
-				
+
 					
 	mf.output_all_moves()
 	gameMap.clearTerritories()
+	logger.debug("****** END TURN %d (time=%s) ******" % (turnCounter,time.clock()-clock))
 
 testBot()
 		
@@ -289,6 +280,10 @@ turnCounter = -1
 def main_loop():
 	while True:
 		main()
-#		cProfile.run('main()', 'stats\mybot-turn%s.stats' % turnCounter)
-cProfile.run('main_loop()', 'stats\mybot.stats')
+		#fname = 'stats\mybot-turn%s.stats' % turnCounter
+		#cProfile.run('main()', fname)
+		#stream = open(log_file_name, 'a');
+		#stats = pstats.Stats(fname, stream=stream)
+		#stats.sort_stats("time").print_stats()
+#cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

@@ -47,6 +47,9 @@ class Attack:
 
 #		attack_logger.info("Next wave: %s" % (debug_list(next_wave)) )
 		return next_wave.values(), found_internal
+	
+	def getAggressionFactor(self):
+		return 5
 		
 	def get_moves(self, seed, frontier, loc_pool, turn_count):
 		waves = []
@@ -63,7 +66,7 @@ class Attack:
 		
 		
 		
-		while (len(wave) > 1):
+		while (len(wave) > 1): # and not any([self.gameMap.getTerritory(self.gameMap.playerTag).getCenter() == m.loc for m in wave])):
 			new_wave, found_internal = self.create_wave(wave, already_waved, frontier, loc_pool, past_frontier)
 			past_frontier = found_internal
 #			attack_logger.info("Appending a Wave: %s" % debug_list(new_wave))
@@ -72,20 +75,28 @@ class Attack:
 		
 #		for i in range(len(waves)):
 #			attack_logger.info("Wave %s: %s" % (i, debug_list(waves[i])))
-				
+		
+		if len(waves) > 0:
+			self.gameMap.attackCenters = [move.loc for move in waves[-1]]
 		
 #		attack_logger.debug("Attack Map: " + getMoveMap(self.gameMap,[item for sublist in waves for item in sublist]))
 		
 		freq = 3
 		i = 0
-		moves = []
+		split = len(waves)/2
+		early_moves = []
+		late_moves = []
 		for i in range(len(waves)):
+			if i < split:
+				moves = early_moves
+			else:
+				moves = late_moves
 #			attack_logger.debug("Sending wave %s:" % i)
 			for move in waves[i]:
 				site = self.gameMap.getSite(move.loc)
-				if site.strength == 255:
+				if site.strength > site.production * self.getAggressionFactor():
 					moves.append(move)
-				elif site.strength > site.production * 10:
-					moves.append(move)
+				else:
+					moves.append(Move(move.loc, 0))
 		
-		return moves
+		return early_moves,late_moves

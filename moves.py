@@ -21,7 +21,7 @@ def setMapChar(move_dict, move):
 	char = " X "
 	#moves_logger.debug("Move options: %s" % move)
 	loc = move.loc
-	dirs = set(move.directions)
+	dirs = set(move.getDirections())
 	if len(dirs) == 1:
 		if 1 in dirs:
 			char = " ^ "
@@ -62,9 +62,9 @@ def setMapChar(move_dict, move):
 			
 	move_dict[loc] = char
 
-def getMoveMap(map, moves):
+def getMoveMap(moves):
 	s = "\n"
-	t = map.getTerritory(map.playerTag)
+	t = gameMap.getTerritory(gameMap.playerTag)
 	
 	move_dict = {}
 	for move in moves:
@@ -74,22 +74,24 @@ def getMoveMap(map, moves):
 	#move_dict = {move.loc: move.direction for move in moves}
 	
 	# Header row
-	for j in range(len(map.contents[0])):
+	for j in range(len(gameMap.contents[0])):
 		s = "%s\t%d" % (s,j)
 	s = "%s\n" % s
 	
-	for i in range(len(map.contents)):
+	for i in range(len(gameMap.contents)):
 		# Header column
-		row = map.contents[i]
+		row = gameMap.contents[i]
 		s = "%s%d" % (s,i)
 		
 		for j in range(len(row)):
 			column = row[j]
 			
-			#### This sets the display value of the map
-			l = map.getLocationXY(j,i)
-			site = map.getSite(l)
-			if l in t.fringe and site.strength == 0:
+			#### This sets the display value of the gameMap
+			l = gameMap.getLocationXY(j,i)
+			site = gameMap.getSite(l)
+			if gameMap.lastAttackCenters and l in gameMap.lastAttackCenters:
+				column = " X "
+			elif l in t.fringe and site.strength == 0:
 				column = "_"
 			elif l in move_dict:
 				column = move_dict[l]
@@ -98,38 +100,47 @@ def getMoveMap(map, moves):
 			
 			####
 			s = s + "\t" + str(column)
-		s = s + "\t%s\n" % map.row_counts[map.playerTag][i]
+		s = s + "\t%s\n" % gameMap.row_counts[gameMap.playerTag][i]
 	# Footer row
-	for j in range(len(map.contents[0])):
-		s = "%s\t%d" % (s,map.col_counts[map.playerTag][j])
+	for j in range(len(gameMap.contents[0])):
+		s = "%s\t%d" % (s,gameMap.col_counts[gameMap.playerTag][j])
 	s = "%s\n" % s
 	return s
 
 class Move:
 	def __init__(self, loc=0, direction=0):
 		self.loc = loc
-		self.directions = []
+		self.directionSites = {}
 		self.addDirection(direction)
 		
 	def addDirection(self, direction):
 		if type(direction) == list:
 			for d in direction:
-				if not d in self.directions:
-					self.directions.append(d)
+				self.directionSites[d] = None
 		else:
-			if not direction in self.directions:
-				self.directions.append(direction)
+			self.directionSites[direction] = None
 	
 	def getDirections(self):
-		return self.directions
+		return list(self.directionSites.keys())
+	
+	def setDirections(self, directions):
+		self.directionSites = {}
+		self.addDirection(directions)
+	
+	def getSites(self):
+		for d in self.directionSites.keys():
+			if not self.directionSites[d]:
+				self.directionSites[d] = gameMap.getSite(self.loc, d)
+		return list(self.directionSites.values())
 	
 	def __str__(self):
 		return "%s->%s" % (self.loc,self.getDirections())
 	
-
+gameMap = None
 class MoveFork:
-	def __init__(self, map, initial_moves):
-		self.map = map
+	def __init__(self, myMap, initial_moves):
+		global gameMap
+		gameMap = myMap
 		self.move_list = []
 		self.unused_moves = set(initial_moves)
 		self.used_moves = set()
@@ -140,75 +151,95 @@ class MoveFork:
 		shuffle(CARDINALS)
 		moves_logger.debug("Route: %s(%s)" % (best_move,best_total) )
 		for dir in CARDINALS:
-			fsite = self.map.getSite(site.loc, dir)
-			if fsite.owner == self.map.playerTag:
+			fsite = gameMap.getSite(site.loc, dir)
+			if fsite.owner == gameMap.playerTag:
 				total = fsite.projected_str + site.strength
 			else:
 				total = fsite.projected_str - site.strength
-			if total < best_total:
+			# use the escape if it's us and better or use a neutral only if the best so far involves waste
+			if ( fsite.owner == gameMap.playerTag and (total > best_total and total < 255) or best_move.getSites()[0].owner != gameMap.playerTag) or best_total > 255:
 				best_total = total
 				best_move = Move(site.loc, dir)
 			moves_logger.debug("Route: %s(%s)" % (Move(site.loc, dir),total) )
 		moves_logger.debug("Escape: %s(%s)" % (best_move,best_total) )
 		return best_move, best_total
 	
-	def find_escape(self, site, target):
-		site_move, site_total = self.check_escapes(site)
-		target_move, target_total = self.check_escapes(target)
-		
-		if target_total < site_total:
-			best_move = target_move
-			best_total = target_total
-		else:
-			best_move = site_move
-			best_total = site_total
+	def find_escapes(self, sites):
+		best_move = None
+		best_total = 100000000
+		for site in sites:
+			site_move, site_total = self.check_escapes(site)
+			if site_total < best_total:
+				best_move = site_move
+				best_total = site_total
+	
 		moves_logger.debug("Best Escape: %s(%s)" % (best_move,best_total) )
 		return best_move
 	
 	def getMoveStrength(self, move):
-		return self.map.getDistance(move.loc,self.map.getTerritory(self.map.playerTag).getCenter())
-		
+		return gameMap.getDistance(move.loc,gameMap.getTerritory(gameMap.playerTag).getCenter())
+	
+	def approve_move(self, move, approved):
+		approved.append(move)
+		site = gameMap.getSite(move.loc)
+		target = gameMap.getSite(site.loc,move.getDirections()[0])
+		#moves_logger.debug("Old pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+		site.projected_str -= site.strength
+		if target.owner == gameMap.playerTag:
+			target.projected_str += site.strength
+		else:
+			target.projected_str -= site.strength
+		#moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+	
 	def resolve_moves_iteratively(self, pending):
 		approved = []
 		continuing = True
 		
 		queue = copy.copy(pending) #sorted(pending, key=self.getMoveStrength, reverse=True)
 		
-		while continuing:
-			continuing = False
-			new_queue = []
-			# moves_logger.debug("Resolving %s moves" % len(queue) )
-			for move in queue:
-				move_approved = False
-				
-				site = self.map.getSite(move.loc)
-				for direction in move.getDirections():
-					target = self.map.getSite(move.loc, direction)
-					if target.owner != self.map.playerTag or target.projected_str + site.strength <= 275:
-						approved.append(move)
-						continuing = True
-						move_approved = True
-						move.directions = [direction]
-						#moves_logger.debug("Old pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
-						site.projected_str -= site.strength
-						if target.owner == self.map.playerTag:
-							target.projected_str += site.strength
-						else:
-							target.projected_str -= site.strength
-						#moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+		while len(queue) > 0:
+			while continuing:
+				continuing = False
+				new_queue = []
+				# moves_logger.debug("Resolving %s moves" % len(queue) )
+				for move in queue:
+					move_approved = False
+					
+					site = gameMap.getSite(move.loc)
+					for direction in move.getDirections():
+						target = gameMap.getSite(move.loc, direction)
+						#moves_logger.debug("target.owner != gameMap.playerTag or ((direction != 0 and ((target.projected_str + site.strength) <= 255)) or (direction == 0 and (target.projected_str <= 255)))" )
+						#moves_logger.debug("      %s                  %s                 %s                    %s                   %s" %(target.owner,gameMap.playerTag,direction,target.projected_str,site.strength) )
+						#moves_logger.debug("            %s                             %s                                          %s                          %s                          %s" %(target.owner != gameMap.playerTag,direction != 0, target.projected_str + site.strength <= 255, direction == 0, target.projected_str <= 255) )
 						
-				if not move_approved:
-					new_queue.append(move)
-			queue = new_queue
-		
-		
-		moves_logger.debug("Unable to resolve queue: %s" % debug_list(new_queue))
-		moves_logger.debug("Skipping escapes right now")
-		#for move in queue:
-		#	site = self.map.getSite(move.loc)
-		#	target = self.map.getSite(move.loc, move.direction)
-		#	approved.append(self.find_escape(site, target))
+						if target.owner != gameMap.playerTag or ((direction != 0 and ((target.projected_str + site.strength) <= 255)) or (direction == 0 and (target.projected_str <= 255))):
+							continuing = True
+							move_approved = True
+							move.setDirections([direction])
+							self.approve_move(move, approved)
+							break
+							#moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+							
+					if not move_approved:
+						new_queue.append(move)
+				queue = new_queue
+			
+			if queue:
+				moves_logger.debug("Unable to resolve queue: %s" % debug_list(new_queue))
+				move = queue[0]
+				queue = queue[1:]
+				moves_logger.debug("Escaping %s" % move)
+				site = gameMap.getSite(move.loc)
+				sites = [site]
+				for dir in move.getDirections():
+					if dir != 0:
+						sites.append(gameMap.getSite(site.loc, dir))
+				esc_move = self.find_escapes(sites)
+				self.approve_move(esc_move, approved)
+				continuing = True
 		return approved
+	
+
 		
 	def output_all_moves(self):
 		from networkingeric import sendString
@@ -216,29 +247,31 @@ class MoveFork:
 		
 		returnString = ""
 		for move in self.move_list:
-			site = self.map.getSite(move.loc)
-			target_site = site = self.map.getSite(move.loc, move.getDirections()[0])
+			site = gameMap.getSite(move.loc)
+			dir = move.getDirections()[0]
+			target_site = gameMap.getSite(move.loc, dir)
 			#moves_logger.debug("Sending: %s (str: %s) dir %s to %s (pstr: %s)" % (move.loc, site.strength, move.getDirections(), target_site.loc, target_site.projected_str) )
-			returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()[0]) + " "
+			if dir != 0:
+				returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()[0]) + " "
 		sendString(returnString)
 	
 	def submit_moves(self, moves, weak=False):
 		for move in moves:
-			self.submit_move(move)
+			self.submit_move(move, weak)
 	
 	def submit_move(self, move, weak=False):
 		loc = move.loc
 	
-		site = self.map.getSite(loc)
+		site = gameMap.getSite(loc)
 		if site.strength == 0:
 			move = Move(loc, 0)
 		
 		# This will raise an exception if you try to use a move twice because you won't be able to remove it
 		
-		moves_logger.debug("Submitting move: %s" % move)
+		moves_logger.debug("Submitting move (weak=%s): %s" % (weak,move))
 
 		if weak and not loc in self.unused_moves:
-			pass
+			return
 		
 		self.unused_moves.remove(loc)
 		self.used_moves.add(loc)

@@ -10,11 +10,10 @@ import cProfile
 import pstats
 import os
 
-
+all
 ##### Logging Setup
 import logging
 logger = logging.getLogger('bot')
-logger.setLevel(logging.DEBUG)	
 
 base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
 log_file_name = 'bot.debug'
@@ -22,6 +21,7 @@ hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
 logger.addHandler(hdlr)
+logger.setLevel(logging.DEBUG)	
 
 
 test_inputs = [
@@ -38,7 +38,7 @@ def remove_sublist(main, sub):
 			main.remove(m)
 		except ValueError:
 			pass
-
+			
 def evaluateSite(site):
 	swing_factor = 1
 	if type(site) == Location:
@@ -48,7 +48,12 @@ def evaluateSite(site):
 		str = 1
 	if len(site.enemies) > 0:
 		swing_factor = 255
-	return swing_factor*site.production/str
+	return swing_factor*site.production/(str*str)
+	
+### when total production is low, should be favor sites with lower strenght
+### when total production is high, should be favor sites with higher production
+	
+	
 
 def getBestDir(map, location):
 	bestDir = None
@@ -202,21 +207,56 @@ def getExpansiveDir(gameMap, loc):
 			break
 	return dir
 
+	
+def findFronts(t, mf):
+	logger.debug("Attacking fronts")
+
+	fronts = [f for f in t.fringe if gameMap.getSite(f).strength == 0]
+	if len(fronts) == 0:
+		fronts = t.fringe
+	
+	n = Attack(gameMap)
+	return n.get_moves(fronts, [], mf.get_unused_moves(), turnCounter)
+	
+	
+	
+def addressNeeds(needy_locations, mf, need_limit = 100):
+	### This is the Need-based assist pattern
+	logger.debug("Finding needs")
+	
+	needs = []
+	try:
+		for loc in needy_locations[:]:
+			site = gameMap.getSite(loc)
+			n = Need(site, gameMap, mf.get_unused_moves())
+			needs.append(n)
+			moves = n.get_moves()
+			if len(moves) < need_limit:
+				mf.submit_moves(moves)
+	except NeedError:
+		pass
+	
+	logger.debug("Need Map (%s and shorter): %s" % (need_limit, getMoveMap([item for sublist in needs for item in sublist.moves])))
+
+	
 gameMap = None
 contacted = False
+attackCenters = None
 def main():
 	clock = time.clock()
 	global turnCounter
 	global gameMap
+	global attackCenters
 	
 	turnCounter += 1
 	logger.debug("****** PREP TURN %d ******" % turnCounter)
 	gameMap = getFrame()
+	gameMap.lastAttackCenters = attackCenters
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
 	t = gameMap.getTerritory(myID)
 	center = t.getCenter()
-	#logger.debug(gameMap.mapToStr(t.getCenter()))
+	logger.debug(gameMap.mapToStr(t.getCenter()))
 	#logger.debug("My center: \t%s" % str(t.getCenter().getRealCenter()))
 	#logger.debug("My frontier: ")
 	#for f in t.frontier:
@@ -228,37 +268,32 @@ def main():
 	#logger.debug("Initial moves: %s" % t.unmoved)
 	mf = MoveFork(gameMap, t.territory)
 	
-	### This is the Need-based assist pattern
-	sorted_fringe = sorted(t.fringe, key=evaluateSite)
-	sorted_fringe.reverse()
-	for loc in sorted_fringe[:]:
-		try:
-			site = gameMap.getSite(loc)
-			n = Need(site, gameMap)
-			moves = n.get_moves( mf.get_unused_moves())
-			mf.submit_moves(moves)
-		except NeedError:
-			pass
+	needy_locations = sorted(t.fringe, key=evaluateSite)
+	needy_locations.reverse()
 	
-	#logger.debug("Need map: " + getMoveMap(gameMap,mf.move_list))
+	
+	early_moves, late_moves = findFronts(t, mf)
+	logger.debug("Early 	Attack Map: " + getMoveMap(early_moves))
+	mf.submit_moves(early_moves)
+	
+	addressNeeds(needy_locations, mf)
+	
+	logger.debug("Late Attack Map: " + getMoveMap(late_moves))
+	mf.submit_moves(late_moves, weak=True)
+	
+	
+	
+	
+	
+	
+	
+	
+
+	
+	#logger.debug("Need map: " + getMoveMap(mf.move_list))
 	#logger.debug("Remaining moves: %s" % debug_list(mf.get_unused_moves()))
 	
-	
-	fronts = [f for f in t.fringe if gameMap.getSite(f).strength == 0]
-	if len(fronts) == 0:
-		fronts = t.fringe
-	
-	n = Attack(gameMap)
-	moves = n.get_moves(fronts, [], mf.get_unused_moves(), turnCounter)
-	#logger.debug("Attack Map: " + getMoveMap(gameMap,moves))
-	mf.submit_moves(moves)
-	
-	
-	# n = Attack(gameMap)
-	# moves = n.get_moves([f for f in t.fringe if gameMap.getSite(f).strength != 0], t.frontier, mf.get_unused_moves(), turnCounter)
-	# #logger.debug(getMoveMap(gameMap,moves))
-	# mf.submit_moves(moves)
-	
+	attackCenters = gameMap.attackCenters 
 
 					
 	mf.output_all_moves()
@@ -285,5 +320,5 @@ def main_loop():
 		#stream = open(log_file_name, 'a');
 		#stats = pstats.Stats(fname, stream=stream)
 		#stats.sort_stats("time").print_stats()
-#cProfile.run('main_loop()', 'stats\mybot.stats')
+cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

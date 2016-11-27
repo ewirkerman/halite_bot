@@ -50,6 +50,7 @@ class Site:
 		self.neutrals = []
 		self.enemies = []
 		self.loc = loc
+		self.enemy_str = 0
 	
 	def valOrDot(self, value, dotValue):
 		if value == dotValue:
@@ -76,6 +77,7 @@ class Territory:
 		self.frontier = set()
 		self.fringe = set()
 		self.map = map
+		self.production = 0
 		self.center = None
 		self.fullrow = None
 		self.fullcol = None
@@ -89,6 +91,7 @@ class Territory:
 	def addLocation(self, location):
 		self.count += 1
 		self.territory.add(location)
+		self.production += self.map.getSite(location).production
 
 	def getLocations(self):
 		return self.territory
@@ -124,6 +127,7 @@ class GameMap:
 		self.playerTag = playerTag
 		self.row_counts = {}
 		self.col_counts = {}
+		self.attackCenters = []
 		self.living_players = set()
 
 		for y in range(0, self.height):

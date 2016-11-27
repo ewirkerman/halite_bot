@@ -2,6 +2,7 @@ import random
 import math
 import copy
 import logging
+from util import *
 
 logger = logging.getLogger("bot")
 
@@ -50,6 +51,7 @@ class Site:
 		self.neutrals = []
 		self.enemies = []
 		self.loc = loc
+		loc.site = self
 		self.enemy_str = 0
 	
 	def valOrDot(self, value, dotValue):
@@ -90,8 +92,13 @@ class Territory:
 	
 	def addLocation(self, location):
 		self.count += 1
+		if not type(location) is Site:
+			site = self.map.getSite(location)
+		else:
+			site = location
+			location = site.loc
 		self.territory.add(location)
-		self.production += self.map.getSite(location).production
+		self.production += site.production
 
 	def getLocations(self):
 		return self.territory
@@ -130,12 +137,14 @@ class GameMap:
 		self.attackCenters = []
 		self.living_players = set()
 
+		logger.info("Recreating all the sites")
 		for y in range(0, self.height):
 			row = []
 			for x in range(0, self.width):
 				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
 				row.append(Site(0, 0, 0, loc = self.getLocationXY(x,y)))
 			self.contents.append(row)
+		logger.info("Recreated all the sites")
 	
 	def inBounds(self, l):
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
@@ -202,37 +211,41 @@ class GameMap:
 
 	def getLocation(self, loc, direction = STILL):
 		return self.getLocationXY(loc.x, loc.y, direction)
+		
+	def updateLocationDirection(self, x,y,loc_key,direction):
+		if direction != STILL:
+			if direction == NORTH:
+				if y == 0:
+					y = self.height - 1
+				else:
+					y -= 1
+			elif direction == EAST:
+				if x == self.width - 1:
+					x = 0
+				else:
+					x += 1
+			elif direction == SOUTH:
+				if y == self.height - 1:
+					y = 0
+				else:
+					y += 1
+			elif direction == WEST:
+				if x == 0:
+					x = self.width - 1
+				else:
+					x -= 1
+			location_cache[loc_key][direction] = self.getLocationXY(x,y)
+		else:
+			location_cache[loc_key][STILL] = Location(x,y)
 	
 	def getLocationXY(self, x, y, direction = STILL):
-		loc_key = ','.join(["%i"% x,"%i"% y])
+		loc_key = 1/2*(x + y)*(x + y + 1) + y
 		#logger.debug(str(len(location_cache)) + " " + loc_key)
 		if not location_cache.get(loc_key):
 			location_cache[loc_key] = {}
 		if not location_cache[loc_key].get(direction):
-			if direction != STILL:
-				if direction == NORTH:
-					if y == 0:
-						y = self.height - 1
-					else:
-						y -= 1
-				elif direction == EAST:
-					if x == self.width - 1:
-						x = 0
-					else:
-						x += 1
-				elif direction == SOUTH:
-					if y == self.height - 1:
-						y = 0
-					else:
-						y += 1
-				elif direction == WEST:
-					if x == 0:
-						x = self.width - 1
-					else:
-						x -= 1
-				location_cache[loc_key][direction] = self.getLocationXY(x,y)
-			else:
-				location_cache[loc_key][STILL] = Location(x,y)
+			self.updateLocationDirection(x,y,loc_key,direction)
+			
 		return location_cache[loc_key][direction]
 		
 		
@@ -252,25 +265,23 @@ class GameMap:
 		
 	def getTerritories(self):
 		return self.territories.values()
-		
+
 	def defineTerritories(self):
 		for t in self.getTerritories():
 			for loc in t.territory:
-				frontier = False
-				for dir in CARDINALS:
+				#logger.debug("Territory Loc: %s" % loc)
+				site = loc.site
+				#logger.debug("Friends: %s" % debug_list(site.friends))
+				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
+				#logger.debug("Enemies: %s" % debug_list(site.enemies))
+				fdirs = [ getOppositeDir(d) for move in site.friends for d in move.getDirections()]
+				#logger.debug("fdirs: %s" % fdirs)
+				for dir in [d for d in CARDINALS if not d in fdirs]:
 					new_loc = self.getLocation(loc, dir)
-					new_site = self.getSite(new_loc)
-					if new_site.owner == 0:
-						frontier = True
-						#logger.debug("New fringe: %s" % new_loc)
-						t.addFringe(new_loc)
-						#map_logger.debug("Fringe:")
-						#for f in t.fringe:
-						#	logger.debug(f)
-					#map_logger.debug("Updating %s... %s" % (str(new_loc), new_site) )
-				if frontier:
+					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
+					t.addFringe(new_loc)
 					t.addFrontier(loc)
-					#logger.debug("New frontier: %s" % loc)
+					
 		
 	def mapToStr(self, center):
 		s = "\n"

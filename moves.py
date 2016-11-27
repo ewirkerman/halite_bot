@@ -5,13 +5,15 @@ from random import shuffle
 
 
 moves_logger = logging.getLogger("moves")
-base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-log_file_name = 'bot.debug'
-hdlr = logging.FileHandler(log_file_name)
-hdlr.setFormatter(base_formatter)
-hdlr.setLevel(logging.DEBUG)
-moves_logger.addHandler(hdlr)
-moves_logger.setLevel(logging.ERROR)
+
+if len(moves_logger.handlers) < 1:
+	base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+	log_file_name = 'bot.debug'
+	hdlr = logging.FileHandler(log_file_name)
+	hdlr.setFormatter(base_formatter)
+	hdlr.setLevel(logging.DEBUG)
+	#moves_logger.addHandler(hdlr)
+	#moves_logger.setLevel(logging.DEBUG)
 
 
 STILL = 0
@@ -88,7 +90,7 @@ def getMoveMap(moves):
 			
 			#### This sets the display value of the gameMap
 			l = gameMap.getLocationXY(j,i)
-			site = gameMap.getSite(l)
+			site = l.site
 			if gameMap.lastAttackCenters and l in gameMap.lastAttackCenters:
 				column = " X "
 			elif l in t.fringe and site.strength == 0:
@@ -126,12 +128,19 @@ class Move:
 	def setDirections(self, directions):
 		self.directionSites = {}
 		self.addDirection(directions)
+		
+	def getDirectionSites(self):
+		self.lazyLoadSites()
+		return self.directionSites.items()
 	
 	def getSites(self):
+		self.lazyLoadSites()
+		return list(self.directionSites.values())
+		
+	def lazyLoadSites(self):
 		for d in self.directionSites.keys():
 			if not self.directionSites[d]:
 				self.directionSites[d] = gameMap.getSite(self.loc, d)
-		return list(self.directionSites.values())
 	
 	def __str__(self):
 		return "%s->%s" % (self.loc,self.getDirections())
@@ -149,7 +158,7 @@ class MoveFork:
 		best_total = site.projected_str
 		best_move = Move(site.loc, STILL)
 		shuffle(CARDINALS)
-		moves_logger.debug("Route: %s(%s)" % (best_move,best_total) )
+		#moves_logger.debug("Route: %s(%s)" % (best_move,best_total) )
 		for dir in CARDINALS:
 			fsite = gameMap.getSite(site.loc, dir)
 			if fsite.owner == gameMap.playerTag:
@@ -160,8 +169,8 @@ class MoveFork:
 			if ( fsite.owner == gameMap.playerTag and (total > best_total and total < 255) or best_move.getSites()[0].owner != gameMap.playerTag) or best_total > 255:
 				best_total = total
 				best_move = Move(site.loc, dir)
-			moves_logger.debug("Route: %s(%s)" % (Move(site.loc, dir),total) )
-		moves_logger.debug("Escape: %s(%s)" % (best_move,best_total) )
+			#moves_logger.debug("Route: %s(%s)" % (Move(site.loc, dir),total) )
+		#moves_logger.debug("Escape: %s(%s)" % (best_move,best_total) )
 		return best_move, best_total
 	
 	def find_escapes(self, sites):
@@ -173,7 +182,7 @@ class MoveFork:
 				best_move = site_move
 				best_total = site_total
 	
-		moves_logger.debug("Best Escape: %s(%s)" % (best_move,best_total) )
+		#moves_logger.debug("Best Escape: %s(%s)" % (best_move,best_total) )
 		return best_move
 	
 	def getMoveStrength(self, move):
@@ -206,8 +215,7 @@ class MoveFork:
 					move_approved = False
 					
 					site = gameMap.getSite(move.loc)
-					for direction in move.getDirections():
-						target = gameMap.getSite(move.loc, direction)
+					for direction, target in move.getDirectionSites():
 						#moves_logger.debug("target.owner != gameMap.playerTag or ((direction != 0 and ((target.projected_str + site.strength) <= 255)) or (direction == 0 and (target.projected_str <= 255)))" )
 						#moves_logger.debug("      %s                  %s                 %s                    %s                   %s" %(target.owner,gameMap.playerTag,direction,target.projected_str,site.strength) )
 						#moves_logger.debug("            %s                             %s                                          %s                          %s                          %s" %(target.owner != gameMap.playerTag,direction != 0, target.projected_str + site.strength <= 255, direction == 0, target.projected_str <= 255) )
@@ -224,19 +232,22 @@ class MoveFork:
 						new_queue.append(move)
 				queue = new_queue
 			
+			# for performance, we might revert to not checking the queue after each fix
 			if queue:
-				moves_logger.debug("Unable to resolve queue: %s" % debug_list(new_queue))
-				move = queue[0]
-				queue = queue[1:]
-				moves_logger.debug("Escaping %s" % move)
-				site = gameMap.getSite(move.loc)
-				sites = [site]
-				for dir in move.getDirections():
-					if dir != 0:
-						sites.append(gameMap.getSite(site.loc, dir))
-				esc_move = self.find_escapes(sites)
-				self.approve_move(esc_move, approved)
-				continuing = True
+				#moves_logger.debug("Unable to resolve queue: %s" % debug_list(new_queue))
+				#move = queue[0]
+				#queue = queue[1:]
+				for move in queue:
+					#moves_logger.debug("Escaping %s" % move)
+					site = gameMap.getSite(move.loc)
+					sites = [site]
+					for dir, target in move.getDirectionSites():
+						if dir != 0:
+							sites.append(target)
+					esc_move = self.find_escapes(sites)
+					self.approve_move(esc_move, approved)
+					continuing = True
+				queue = []
 		return approved
 	
 
@@ -261,14 +272,13 @@ class MoveFork:
 	
 	def submit_move(self, move, weak=False):
 		loc = move.loc
-	
-		site = gameMap.getSite(loc)
+		site = loc.site
 		if site.strength == 0:
 			move = Move(loc, 0)
 		
 		# This will raise an exception if you try to use a move twice because you won't be able to remove it
 		
-		moves_logger.debug("Submitting move (weak=%s): %s" % (weak,move))
+		#moves_logger.debug("Submitting move (weak=%s): %s" % (weak,move))
 
 		if weak and not loc in self.unused_moves:
 			return

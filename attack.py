@@ -2,9 +2,10 @@ from hlt2 import *
 from networking2 import *
 from moves import *
 import logging
-attack_logger = logging.getLogger('bot')
+
+attack_logger = logging.getLogger('attack')
 base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-log_file_name = 'bot.debug'
+log_file_name = 'need.debug'
 hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
@@ -57,7 +58,7 @@ class Attack:
 		past_frontier = False
 		wave = []
 		for loc in seed:
-			site = self.gameMap.getSite(loc)
+			site = loc.site
 			for friend_move in site.friends:
 				if not friend_move.loc in already_waved:
 					already_waved.add(friend_move.loc)

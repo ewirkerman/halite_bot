@@ -10,7 +10,6 @@ import cProfile
 import pstats
 import os
 
-all
 ##### Logging Setup
 import logging
 logger = logging.getLogger('bot')
@@ -236,7 +235,7 @@ def addressNeeds(needy_locations, mf, need_limit = 100):
 	except NeedError:
 		pass
 	
-	logger.debug("Need Map (%s and shorter): %s" % (need_limit, getMoveMap([item for sublist in needs for item in sublist.moves])))
+	#logger.debug("Need Map (%s and shorter): %s" % (need_limit, getMoveMap([item for sublist in needs for item in sublist.moves])))
 
 	
 gameMap = None
@@ -256,7 +255,7 @@ def main():
 	
 	t = gameMap.getTerritory(myID)
 	center = t.getCenter()
-	logger.debug(gameMap.mapToStr(t.getCenter()))
+	#logger.debug(gameMap.mapToStr(t.getCenter()))
 	#logger.debug("My center: \t%s" % str(t.getCenter().getRealCenter()))
 	#logger.debug("My frontier: ")
 	#for f in t.frontier:
@@ -270,15 +269,15 @@ def main():
 	
 	needy_locations = sorted(t.fringe, key=evaluateSite)
 	needy_locations.reverse()
-	
+	#logger.debug("Needies: %s" % debug_list(needy_locations))
 	
 	early_moves, late_moves = findFronts(t, mf)
-	logger.debug("Early 	Attack Map: " + getMoveMap(early_moves))
+	#logger.debug("Early Attack Map: " + getMoveMap(early_moves))
 	mf.submit_moves(early_moves)
 	
 	addressNeeds(needy_locations, mf)
 	
-	logger.debug("Late Attack Map: " + getMoveMap(late_moves))
+	#logger.debug("Late Attack Map: " + getMoveMap(late_moves))
 	mf.submit_moves(late_moves, weak=True)
 	
 	
@@ -315,10 +314,12 @@ turnCounter = -1
 def main_loop():
 	while True:
 		main()
-		#fname = 'stats\mybot-turn%s.stats' % turnCounter
-		#cProfile.run('main()', fname)
-		#stream = open(log_file_name, 'a');
-		#stats = pstats.Stats(fname, stream=stream)
-		#stats.sort_stats("time").print_stats()
-cProfile.run('main_loop()', 'stats\mybot.stats')
+		#currpath = 'stats\mybot-currturn.stats'
+		#lastpath = 'stats\mybot-lastturn.stats'
+		#if os.path.exists(currpath):
+		#	if os.path.exists(lastpath):
+		#		os.remove(lastpath)
+		#	os.rename(currpath, lastpath)
+		#cProfile.run('main()', currpath)
+#cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

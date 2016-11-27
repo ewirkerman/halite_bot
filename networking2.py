@@ -10,13 +10,14 @@ from random import shuffle
 
 map_logger = logging.getLogger('map')
 
-base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-log_file_name = 'bot.debug'
-hdlr = logging.FileHandler(log_file_name)
-hdlr.setFormatter(base_formatter)
-hdlr.setLevel(logging.DEBUG)
-map_logger.addHandler(hdlr)
-map_logger.setLevel(logging.ERROR)	
+if len(map_logger.handlers) < 1:
+	base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+	log_file_name = 'bot.debug'
+	hdlr = logging.FileHandler(log_file_name)
+	hdlr.setFormatter(base_formatter)
+	hdlr.setLevel(logging.DEBUG)
+	#map_logger.addHandler(hdlr)
+	#map_logger.setLevel(logging.DEBUG)	
 
 test_inputs = [
 "1 0 1 2 1 1 1 0 108 176 176 108 ",
@@ -56,23 +57,25 @@ def deserializeProductions(inputString):
 		
 def mark_neighbors(map, loc, type):
 	shuffle(rng_CARDINALS)
-	for dir in rng_CARDINALS:
-		#map_logger.debug("loc %s, dir %s" % (loc, dir))
+	myCards = copy.copy(rng_CARDINALS)
+	for dir in myCards:
 		new_loc = map.getLocation(loc, dir)
-		#map_logger.debug("Found %s" % new_loc)
-		new_site = map.getSite(new_loc)
-		type_list = getattr(new_site, type).append(Move(loc, dir))
-		#logger.debug("Marked %s with %s, o=%s, s=%s" % (new_loc, type, new_site.owner, new_site.owner) )
-		if type == "friends" and new_site.owner == 0:
-			increment_neighbors(map, loc, "neutrals")
+		new_site = new_loc.site
+		getattr(new_site, type).append(Move(loc, dir))
+		type_list = getattr(new_site, type)
+		
+		#map_logger.debug("New %s list for %s: %s" % (type, new_loc,debug_list(type_list)) )
+		
+		# we can't mark the neutrals around a friend at this point because we haven't set all the owner
+		#if type == "friends" and new_site.owner == 0:
+		#	#map_logger.debug("Incrementing a fringe neutral at %s" % new_loc)
+		#	increment_neighbors(map, new_loc, new_site.owner)
 
 def increment_neighbors(map, loc, owner):
-	#map_logger.debug("Updating neighbors of %s" % (loc))
 	curr_site = map.getSite(loc)
-	if owner != playerTag:
-		return
-	t = map.getTerritory(owner)
-	t.addLocation(loc)
+	if owner > 0:
+		t = map.getTerritory(owner)
+		t.addLocation(curr_site)
 	
 	if owner == playerTag:
 		type = "friends"
@@ -80,7 +83,7 @@ def increment_neighbors(map, loc, owner):
 		type = "neutrals"
 	else:
 		type = "enemies"
-	#map_logger.debug("Found %s at %s" % (type, loc) )
+	#map_logger.debug("Increment_neighbors neighbors of %s with type %s" % (loc, type))
 	mark_neighbors(map, loc, type)
 
 def deserializeMap(m, inputString):
@@ -104,7 +107,6 @@ def deserializeMap(m, inputString):
 			if owner > 0:
 				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
-				m.getTerritory(owner).addLocation(loc)
 			x += 1
 			if x == m.width:
 				x = 0
@@ -116,7 +118,7 @@ def deserializeMap(m, inputString):
 			m.contents[a][b].projected_str = m.contents[a][b].strength
 			m.contents[a][b].production = _productions[a][b]
 
-	
+	logger.debug("Deserializing complete")
 	return m
 
 def sendString(toBeSent):
@@ -127,7 +129,7 @@ def sendString(toBeSent):
 
 def getStringTest():
 	s = test_inputs.pop()
-	#map_logger.debug("Got String(): %s" % s)
+	##map_logger.debug("Got String(): %s" % s)
 	return s
 	
 def getString():
@@ -138,10 +140,10 @@ def getInit(getString=getString):
 	playerTag = int(getString())
 	deserializeMapSize(getString())
 	deserializeProductions(getString())
-	map_logger.debug("Finished Map init")
+	#map_logger.debug("Finished Map init")
 	m = GameMap(_width, _height, playerTag = playerTag)
 	
-	map_logger.debug("Caching map relations")
+	#map_logger.debug("Caching map relations")
 	for y in range(m.height):
 		for x in range(m.width):
 			l = Location(x,y)

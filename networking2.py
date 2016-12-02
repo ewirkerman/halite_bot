@@ -46,13 +46,22 @@ def deserializeMapSize(inputString):
 	_width = int(splitString.pop(0))
 	_height = int(splitString.pop(0))
 
+production_min_set = []
 def deserializeProductions(inputString):
+	global production_min_set
 	splitString = inputString.split(" ")
+	
+	min = 100
 
 	for a in range(0, _height):
 		row = []
 		for b in range(0, _width):
-			row.append(int(splitString.pop(0)))
+			prod = int(splitString.pop(0))
+			if prod <= min:
+				if prod < min:
+					production_min_set = []
+				production_min_set.append((b,a))
+			row.append(prod)
 		_productions.append(row)
 		
 def mark_neighbors(map, loc, type):
@@ -152,7 +161,7 @@ def getInit(getString=getString):
 	
 	deserializeMap(m, getString())
 	
-
+	#m.findLocalMaxima(production_min_set)
 	
 	return (playerTag, m)
 

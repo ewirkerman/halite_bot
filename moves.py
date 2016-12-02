@@ -7,7 +7,7 @@ from random import shuffle
 moves_logger = logging.getLogger("moves")
 
 if len(moves_logger.handlers) < 1:
-	base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+	base_formatter = logging.Formatter("%(levelname)s %(message)s")
 	log_file_name = 'bot.debug'
 	hdlr = logging.FileHandler(log_file_name)
 	hdlr.setFormatter(base_formatter)
@@ -91,9 +91,7 @@ def getMoveMap(moves):
 			#### This sets the display value of the gameMap
 			l = gameMap.getLocationXY(j,i)
 			site = l.site
-			if gameMap.lastAttackCenters and l in gameMap.lastAttackCenters:
-				column = " X "
-			elif l in t.fringe and site.strength == 0:
+			if l in t.fringe and site.strength == 0:
 				column = "_"
 			elif l in move_dict:
 				column = move_dict[l]
@@ -144,6 +142,9 @@ class Move:
 	
 	def __str__(self):
 		return "%s->%s" % (self.loc,self.getDirections())
+		
+	def __lt__(self, other):
+		return self.loc < other.loc
 	
 gameMap = None
 class MoveFork:
@@ -153,6 +154,7 @@ class MoveFork:
 		self.move_list = []
 		self.unused_moves = set(initial_moves)
 		self.used_moves = set()
+		self.spread_gap = []
 	
 	def check_escapes(self, site):
 		best_total = site.projected_str
@@ -200,6 +202,39 @@ class MoveFork:
 			target.projected_str -= site.strength
 		#moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
 	
+	
+	
+	def passesMoveFilter(self, site, direction, target):
+		#t = gameMap.getTerritory(gameMap.playerTag)
+			
+		
+		#if not t.spread_zone:
+		#	#moves_logger.debug("Creating spread zone")
+		#	
+		#	t.spread_zone.update([f for f in t.fringe if f.site.strength == 0])
+		#	#moves_logger.debug("neutral spread zone: %s" % debug_list(t.spread_zone))
+		#	for loc in copy.copy(t.spread_zone):
+		#		#moves_logger.debug("Adding friends of %s" % loc)
+		#		site = loc.site
+		#		for move in site.friends:
+		#			#moves_logger.debug("Adding %s to the spread zone" % move.loc)
+		#			t.spread_zone.add(move.loc)
+		#			
+		#	
+		#	
+		#	#t.spread_zone.update([move.loc for sublist in t.fronts if sublist.site.strength == 0 for move in sublist.site.friends])
+		#
+		#moves_logger.debug("spread_zone: %s" % debug_list(t.spread_zone))
+		
+		
+		if not (target.owner != gameMap.playerTag or ((direction != 0 and ((target.projected_str + site.strength) <= 255)) or (direction == 0 and (target.projected_str <= 255)))):
+			return False
+			
+
+		
+		return True
+
+	
 	def resolve_moves_iteratively(self, pending):
 		approved = []
 		continuing = True
@@ -220,7 +255,7 @@ class MoveFork:
 						#moves_logger.debug("      %s                  %s                 %s                    %s                   %s" %(target.owner,gameMap.playerTag,direction,target.projected_str,site.strength) )
 						#moves_logger.debug("            %s                             %s                                          %s                          %s                          %s" %(target.owner != gameMap.playerTag,direction != 0, target.projected_str + site.strength <= 255, direction == 0, target.projected_str <= 255) )
 						
-						if target.owner != gameMap.playerTag or ((direction != 0 and ((target.projected_str + site.strength) <= 255)) or (direction == 0 and (target.projected_str <= 255))):
+						if self.passesMoveFilter(site, direction, target):
 							continuing = True
 							move_approved = True
 							move.setDirections([direction])
@@ -253,7 +288,7 @@ class MoveFork:
 
 		
 	def output_all_moves(self):
-		from networkingeric import sendString
+		from networking2 import sendString
 		self.move_list = self.resolve_moves_iteratively(pending=self.move_list)
 		
 		returnString = ""

@@ -78,6 +78,7 @@ class Territory:
 		self.territory = set()
 		self.frontier = set()
 		self.fringe = set()
+		self.spread_zone = set()
 		self.map = map
 		self.production = 0
 		self.center = None
@@ -136,6 +137,7 @@ class GameMap:
 		self.col_counts = {}
 		self.attackCenters = []
 		self.living_players = set()
+		self.local_maxima = []
 
 		logger.info("Recreating all the sites")
 		for y in range(0, self.height):
@@ -265,6 +267,37 @@ class GameMap:
 		
 	def getTerritories(self):
 		return self.territories.values()
+		
+	def findLocalMaxima(self, seed_min_set):
+		this_wave = [self.getLocationXY(0,0)]
+		already_waved = this_wave
+		while len(this_wave) > 0:
+			next_wave = []
+			for loc in this_wave:
+				logger.debug("Maxima loc: %s" % loc)
+				spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
+				for spread_loc in spread_locs:
+					next_wave.append(spread_loc)
+				if all([spread_loc.site.production <= loc.site.production for spread_loc in spread_locs]):
+					self.local_maxima.append(loc)
+			already_waved.extend(this_wave)
+			this_wave = next_wave
+		logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
+		
+		
+	def setupFringeLoc(self, loc):
+		site = loc.site
+		site.local_production = site.production
+		site.local_strength = site.production
+		count = 1
+		for dir in CARDINALS:
+			adj_site = self.getSite(loc, dir)
+			if adj_site.owner == 0:
+				count +=1
+				site.local_production += adj_site.production
+				site.local_strength += adj_site.strength
+		site.local_production /= count
+		site.local_strength /= count
 
 	def defineTerritories(self):
 		for t in self.getTerritories():
@@ -280,6 +313,7 @@ class GameMap:
 					new_loc = self.getLocation(loc, dir)
 					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
 					t.addFringe(new_loc)
+					self.setupFringeLoc(new_loc)
 					t.addFrontier(loc)
 					
 		

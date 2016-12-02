@@ -5,14 +5,15 @@ import logging
 
 attack_logger = logging.getLogger('attack')
 base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-log_file_name = 'need.debug'
+log_file_name = 'bot.debug'
 hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
 hdlr.setLevel(logging.DEBUG)
-attack_logger.setLevel(logging.ERROR)
+attack_logger.setLevel(logging.DEBUG)
 
 
-
+def getStrFromLoc(move):
+	return move.loc.site.strength
 
 class Attack:
 	def __init__(self,map):
@@ -32,6 +33,7 @@ class Attack:
 		for move in wave:
 #			attack_logger.debug("Getting friends of: %s" % move.loc)
 			site = self.gameMap.getSite(move.loc)
+			
 			for friend_move in site.friends:
 #				attack_logger.debug("Checking friend of: %s" % friend_move.loc)
 				fsite = self.gameMap.getSite(friend_move.loc)
@@ -84,7 +86,9 @@ class Attack:
 		
 		freq = 3
 		i = 0
-		split = len(waves)/2
+		aggression_divisor = 2
+		
+		split = len(waves)/aggression_divisor
 		early_moves = []
 		late_moves = []
 		for i in range(len(waves)):
@@ -93,10 +97,16 @@ class Attack:
 			else:
 				moves = late_moves
 #			attack_logger.debug("Sending wave %s:" % i)
-			for move in waves[i]:
+			for move in sorted(waves[i], key=getStrFromLoc, reverse=True):
 				site = self.gameMap.getSite(move.loc)
-				if site.strength > site.production * self.getAggressionFactor():
-					moves.append(move)
+				if site.strength > site.production * self.getAggressionFactor() :
+					#attack_logger.debug("%s  vs %s" % (move.loc, self.gameMap.turnCounter))
+					if self.gameMap.playerTag == 1 and ((move.loc.x % 2 == move.loc.y % 2) == (self.gameMap.turnCounter % 2 == 0)) and i < 1:
+						#attack_logger.debug("Not the right square color, skipping %s" % move.loc)
+						pass
+					else:
+						moves.append(move)
+					
 				else:
 					moves.append(Move(move.loc, 0))
 		

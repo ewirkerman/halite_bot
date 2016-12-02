@@ -7,12 +7,9 @@ __pycache__/
 bot.debug
 bots/
 db.sqlite3
-dist.ps1
 error.log
 halite.exe
 halite.io/
 mybot.stats
-printStats.py
 replay.hlt
-runGame.ps1
 stats/

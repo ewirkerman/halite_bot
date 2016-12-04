@@ -9,15 +9,17 @@ import traceback
 from random import shuffle
 
 map_logger = logging.getLogger('map')
-
-if len(map_logger.handlers) < 1:
-	base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-	log_file_name = 'bot.debug'
-	hdlr = logging.FileHandler(log_file_name)
-	hdlr.setFormatter(base_formatter)
-	hdlr.setLevel(logging.DEBUG)
-	#map_logger.addHandler(hdlr)
-	#map_logger.setLevel(logging.DEBUG)	
+try:
+	if len(map_logger.handlers) < 1:
+		base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+		log_file_name = 'bot.debug'
+		hdlr = logging.FileHandler(log_file_name)
+		hdlr.setFormatter(base_formatter)
+		hdlr.setLevel(logging.DEBUG)
+		#map_logger.addHandler(hdlr)
+		#map_logger.setLevel(logging.DEBUG)	
+except NameError:
+	pass
 
 test_inputs = [
 "1 0 1 2 1 1 1 0 108 176 176 108 ",

@@ -8,6 +8,15 @@ function ZipFiles( $zipfilename, $sourcedir )
    [System.IO.Compression.ZipFile]::CreateFromDirectory($sourcedir,
         $zipfilename, $compressionLevel, $false)
 }
+
+$configFiles = Get-ChildItem . *.config -rec
+foreach ($file in $configFiles)
+{
+    (Get-Content $file.PSPath) |
+    Foreach-Object { $_ -replace "Dev", "Demo" } |
+    Set-Content $file.PSPath
+}
+
 if (Test-Path $botPath) {
 	Remove-Item $botPath -Recurse -Force
 }
@@ -24,6 +33,14 @@ if (Test-Path $botPath\MyBotCopy.py) {
 }
 if (Test-Path $PSScriptRoot\MyBot.zip) {
 	Remove-Item $PSScriptRoot\MyBot.zip -Force
+}
+
+$scripts = Get-ChildItem $botPath *.py -rec
+foreach ($file in $scripts)
+{
+    (Get-Content $file.PSPath) |
+    Foreach-Object { $_ -replace "^(.*?[a-zA-Z_]*?logger)", "#$&" } |
+    Set-Content $file.PSPath
 }
 
 ZipFiles $PSScriptRoot\MyBot.zip $botPath

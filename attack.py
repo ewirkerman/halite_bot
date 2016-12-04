@@ -1,16 +1,19 @@
 from hlt2 import *
 from networking2 import *
 from moves import *
+import balance 
 import logging
 
-attack_logger = logging.getLogger('attack')
-base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
-log_file_name = 'bot.debug'
-hdlr = logging.FileHandler(log_file_name)
-hdlr.setFormatter(base_formatter)
-hdlr.setLevel(logging.DEBUG)
-attack_logger.setLevel(logging.DEBUG)
-
+try:
+	attack_logger = logging.getLogger('attack')
+	base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+	log_file_name = 'bot.debug'
+	hdlr = logging.FileHandler(log_file_name)
+	hdlr.setFormatter(base_formatter)
+	hdlr.setLevel(logging.DEBUG)
+	attack_logger.setLevel(logging.DEBUG)
+except NameError:
+	pass
 
 def getStrFromLoc(move):
 	return move.loc.site.strength
@@ -18,10 +21,6 @@ def getStrFromLoc(move):
 class Attack:
 	def __init__(self,map):
 		self.gameMap = map
-		
-	def is_satisfied(self):
-		met = self.strength > self.site.strength
-		return met
 	
 	def create_wave(self, wave, already_waved, frontier, loc_pool, past_frontier):
 		next_wave = {}
@@ -51,9 +50,6 @@ class Attack:
 #		attack_logger.info("Next wave: %s" % (debug_list(next_wave)) )
 		return next_wave.values(), found_internal
 	
-	def getAggressionFactor(self):
-		return 5
-		
 	def get_moves(self, seed, frontier, loc_pool, turn_count):
 		waves = []
 		already_waved = set()
@@ -76,19 +72,10 @@ class Attack:
 			waves.append(new_wave)
 			wave = new_wave
 		
-#		for i in range(len(waves)):
-#			attack_logger.info("Wave %s: %s" % (i, debug_list(waves[i])))
-		
-		if len(waves) > 0:
-			self.gameMap.attackCenters = [move.loc for move in waves[-1]]
-		
 #		attack_logger.debug("Attack Map: " + getMoveMap(self.gameMap,[item for sublist in waves for item in sublist]))
 		
-		freq = 3
-		i = 0
-		aggression_divisor = 2
-		
-		split = len(waves)/aggression_divisor
+		split = balance.getSplitWave(self.gameMap, waves)
+		spread = balance.getSpreadWave(waves)
 		early_moves = []
 		late_moves = []
 		for i in range(len(waves)):
@@ -99,9 +86,9 @@ class Attack:
 #			attack_logger.debug("Sending wave %s:" % i)
 			for move in sorted(waves[i], key=getStrFromLoc, reverse=True):
 				site = self.gameMap.getSite(move.loc)
-				if site.strength > site.production * self.getAggressionFactor() :
+				if site.strength > site.production * balance.getAggressionFactor(self.gameMap, site) :
 					#attack_logger.debug("%s  vs %s" % (move.loc, self.gameMap.turnCounter))
-					if self.gameMap.playerTag == 1 and ((move.loc.x % 2 == move.loc.y % 2) == (self.gameMap.turnCounter % 2 == 0)) and i < 1:
+					if balance.checkerOn() and (self.gameMap.playerTag == 1 and ((move.loc.x % 2 == move.loc.y % 2) == (self.gameMap.turnCounter % 2 == 0)) and i < spread):
 						#attack_logger.debug("Not the right square color, skipping %s" % move.loc)
 						pass
 					else:

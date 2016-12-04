@@ -13,6 +13,7 @@ from attack import Attack
 import cProfile
 import pstats
 import os
+import balance
 
 ##### Logging Setup
 import logging
@@ -41,28 +42,6 @@ def remove_sublist(main, sub):
 			main.remove(m)
 		except ValueError:
 			pass
-			
-def evaluateSite(site):
-	swing_factor = 1
-	if type(site) == Location:
-		site = gameMap.getSite(site)
-	str = site.strength
-	if str < 1:
-		str = 1
-	if len(site.enemies) > 0:
-		swing_factor = 255
-	return swing_factor*site.production/(str*str)
-	
-def evaluateLocal(site):
-	swing_factor = 1
-	if type(site) == Location:
-		site = gameMap.getSite(site)
-	str = site.local_strength
-	if str < 1:
-		str = 1
-	if len(site.enemies) > 0:
-		swing_factor = 255
-	return swing_factor*site.local_production/(str)
 	
 ### when total production is low, should be favor sites with lower strenght
 ### when total production is high, should be favor sites with higher production
@@ -82,7 +61,7 @@ def findFronts(t, mf):
 	
 	
 	
-def addressNeeds(needy_locations, mf, need_limit = 100):
+def addressNeeds(needy_locations, mf, need_limit = balance.getNeedLimit()):
 	### This is the Need-based assist pattern
 	logger.debug("Finding needs")
 	
@@ -103,56 +82,36 @@ def addressNeeds(needy_locations, mf, need_limit = 100):
 	
 gameMap = None
 contacted = False
-attackCenters = None
 def main():
 	clock = time.clock()
 	global turnCounter
 	global gameMap
-	global attackCenters
 	
 	turnCounter += 1
 	logger.debug("****** PREP TURN %d ******" % turnCounter)
 	gameMap = getFrame()
 	gameMap.turnCounter = turnCounter
-	gameMap.lastAttackCenters = attackCenters
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
 	t = gameMap.getTerritory(myID)
 	center = t.getCenter()
-	#logger.debug(gameMap.mapToStr(t.getCenter()))
-	#logger.debug("My center: \t%s" % str(t.getCenter().getRealCenter()))
-	#logger.debug("My frontier: ")
-	#for f in t.frontier:
-	#	logger.debug(f)
-	#logger.debug("My fringe: ")
-	#for f in t.fringe:
-	#	logger.debug(f)
 	
-	#logger.debug("Initial moves: %s" % t.unmoved)
 	mf = MoveFork(gameMap, t.territory)
 	
-	needy_locations = sorted(t.fringe, key=evaluateSite)
-	needy_locations.reverse()
-	#logger.debug("Needies: %s" % debug_list(needy_locations))
-	
-	needy_locations = sorted(t.fringe, key=evaluateLocal)
-	needy_locations.reverse()
 	#logger.debug("New Needies: %s" % debug_list(needy_locations))
 	
 	early_moves, late_moves = findFronts(t, mf)
-	#logger.debug("Early Attack Map: " + getMoveMap(early_moves))
+	
+	logger.debug("Early Attack Map: " + getMoveMap(early_moves))
 	mf.submit_moves(early_moves)
 	
+	needy_locations = sorted(t.fringe, key=balance.evaluateMapSite(gameMap))
+	needy_locations.reverse()
 	addressNeeds(needy_locations, mf)
 	
-#	logger.debug("Late Attack Map: " + getMoveMap(late_moves))
+	logger.debug("Late Attack Map: " + getMoveMap(late_moves))
 	mf.submit_moves(late_moves, weak=True)
 	
-	#logger.debug("Need map: " + getMoveMap(mf.move_list))
-	#logger.debug("Remaining moves: %s" % debug_list(mf.get_unused_moves()))
-	
-	attackCenters = gameMap.attackCenters 
-
 					
 	mf.output_all_moves()
 	gameMap.clearTerritories()

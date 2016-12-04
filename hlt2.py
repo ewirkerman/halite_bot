@@ -81,6 +81,7 @@ class Territory:
 		self.spread_zone = set()
 		self.map = map
 		self.production = 0
+		self.strength = 0
 		self.center = None
 		self.fullrow = None
 		self.fullcol = None
@@ -100,6 +101,7 @@ class Territory:
 			location = site.loc
 		self.territory.add(location)
 		self.production += site.production
+		self.strength += site.strength
 
 	def getLocations(self):
 		return self.territory
@@ -135,7 +137,6 @@ class GameMap:
 		self.playerTag = playerTag
 		self.row_counts = {}
 		self.col_counts = {}
-		self.attackCenters = []
 		self.living_players = set()
 		self.local_maxima = []
 
@@ -257,7 +258,9 @@ class GameMap:
 		#logger.debug("getSite found location %s" % l)
 		return self.contents[l.y][l.x]
 	
-	def getTerritory(self, owner):
+	def getTerritory(self, owner = None):
+		if owner is None:
+			owner = self.playerTag
 		if not self.territories.get(owner):
 			self.territories[owner] = Territory(owner, self)
 		return self.territories[owner]

@@ -14,6 +14,7 @@ import cProfile
 import pstats
 import os
 import balance
+from claim import *
 
 ##### Logging Setup
 import logging
@@ -100,18 +101,31 @@ def main():
 	
 	#logger.debug("New Needies: %s" % debug_list(needy_locations))
 	
-	early_moves, late_moves = findFronts(t, mf)
+	#early_moves, late_moves = findFronts(t, mf)
+	#
+	#logger.debug("Early Attack Map: " + getMoveMap(early_moves))
+	#mf.submit_moves(early_moves)
+	#
+	#needy_locations = sorted(t.fringe, key=balance.evaluateMapSite(gameMap))
+	#needy_locations.reverse()
+	#addressNeeds(needy_locations, mf)
+	#
+	#logger.debug("Late Attack Map: " + getMoveMap(late_moves))
+	#mf.submit_moves(late_moves, weak=True)
+	root_claims = [Claim(gameMap, loc) for loc in t.fringe]
+	for claim in sorted(root_claims):
+		logger.debug("")
+		logger.debug("Expanding seed claim %s" % (claim.loc) )
+		claim.trigger()
+		
+	moves = []
+	for claim in root_claims:
+		c_moves = claim.get_as_moves()
+		logger.debug("Claim %s moves: %s" % (claim.loc,c_moves) )
+		moves.extend(c_moves)
 	
-	logger.debug("Early Attack Map: " + getMoveMap(early_moves))
-	mf.submit_moves(early_moves)
-	
-	needy_locations = sorted(t.fringe, key=balance.evaluateMapSite(gameMap))
-	needy_locations.reverse()
-	addressNeeds(needy_locations, mf)
-	
-	logger.debug("Late Attack Map: " + getMoveMap(late_moves))
-	mf.submit_moves(late_moves, weak=True)
-	
+	logger.debug("Claim Map: " + getMoveMap(moves))
+	mf.submit_moves(moves)
 					
 	mf.output_all_moves()
 	gameMap.clearTerritories()

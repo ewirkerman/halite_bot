@@ -12,12 +12,12 @@ $player_count = (2,3,4,5,6) | Get-Random
 $player_count = (2) | Get-Random
 
 $players = New-Object System.Collections.ArrayList($null)
-$players.add("python bots\MyBot\MyBot.py")
+$players.add("python MyBot.py")
 #$players.add("python MyBot.py")
 
 for ($i=1; $i -lt $player_count; $i++)
 {
-  $players.add("python bots\SpreadBot\MyBot.py")
+  $players.add("python bots\ComboBot\MyBot.py")
 }
 
 if ($seed) {

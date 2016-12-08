@@ -1,7 +1,8 @@
-def debug_list(list):
-	if list is None:
+def debug_list(l):
+	if l is None:
 		return "None"
-	s = ",".join([str(e) for e in list])
+	
+	s = ",".join([str(e) for e in list(l)])
 	return "[%s]" % s
 	
 def getOppositeDir(dir):

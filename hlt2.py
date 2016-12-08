@@ -4,6 +4,7 @@ import copy
 import logging
 from util import *
 
+
 logger = logging.getLogger("bot")
 
 STILL = 0
@@ -53,6 +54,8 @@ class Site:
 		self.loc = loc
 		loc.site = self
 		self.enemy_str = 0
+		from claim import ClaimHeap
+		self.heap = ClaimHeap(self)
 	
 	def valOrDot(self, value, dotValue):
 		if value == dotValue:
@@ -84,6 +87,7 @@ class Territory:
 		self.strength = 0
 		self.center = None
 		self.fullrow = None
+		self.fronts = []
 		self.fullcol = None
 	
 	def addFrontier(self, location):

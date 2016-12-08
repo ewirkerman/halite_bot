@@ -36,6 +36,9 @@ class Need:
 				enemy_str += site.strength
 		self.effective_str = self.site.strength + enemy_str
 		need_logger.error("Need %s for %s at %s" % (site.strength, site.production,site.loc))
+	
+	def __lt__(self, other):
+		return self.effective_str < other.effective_str
 		
 	def is_satisfied(self):
 		enemy_str = 0
@@ -44,7 +47,7 @@ class Need:
 				enemy_str += site.strength
 		effective_str = max
 		met = self.strength > max([self.site.strength, enemy_str])
-		#need_logger.debug("Help %s > Need %s? %s" %(self.strength, self.site.strength, met))
+		need_logger.debug("Help %s > Need %s? %s" %(self.strength, self.site.strength, met))
 	
 		return met
 	
@@ -117,36 +120,36 @@ class Need:
 	def get_moves(self):
 		if not self.moves:
 			gen = []
-			#need_logger.debug("Seeding from : %s" % debug_list(self.site.friends) )
+			need_logger.debug("Seeding from : %s" % debug_list(self.site.friends) )
 			# This sets up the base generation from the location we are targeting
 			for friend_move in self.site.friends:
 				if not friend_move.loc in [used.loc for used in self.already_used] and not friend_move.loc in [used.loc for used in gen] and friend_move.loc in self.loc_pool:
 					gen.append(friend_move)
 			
-			#need_logger.debug("Seed gen: %s" % debug_list(gen) )
-			#need_logger.debug("Loc Pool: %s" % debug_list(self.loc_pool) )
+			need_logger.debug("Seed gen: %s" % debug_list(gen) )
+			need_logger.debug("Loc Pool: %s" % debug_list(self.loc_pool) )
 			while len(gen) > 0:
 				satisfied, this_gen, next_gen = self.check_generation(gen)
 				first = False
 				if satisfied:
-					#need_logger.debug("Satisfied! %s" % debug_list(this_gen))
+					need_logger.debug("Satisfied! %s" % debug_list(this_gen))
 					self.moves = [Move(m.loc, STILL) for m in self.already_used] + this_gen
 					return self.moves
 				else:
-					#need_logger.debug("Mid gen: %s" % debug_list(this_gen))
+					need_logger.debug("Mid gen: %s" % debug_list(this_gen))
 					self.already_used.extend(this_gen)
-					#need_logger.debug("Already_used list: %s" % debug_list(self.already_used))
+					need_logger.debug("Already_used list: %s" % debug_list(self.already_used))
 					self.strength += self.production
 					#if self.is_satisfied():
 					#	return [Move(m.loc, STILL) for m in already_used]
 					gen = next_gen
 					
 			self.moves = [Move(m.loc, STILL) for m in self.already_used]
-			return self.moves
+		return self.moves
 		
 		
 	def apply_help(self, loc, site):
-		#need_logger.debug("Pledged %s from %s" % (site.strength,loc))
+		need_logger.debug("Pledged %s from %s" % (site.strength,loc))
 		
 		self.production += site.production
 		self.strength += site.strength

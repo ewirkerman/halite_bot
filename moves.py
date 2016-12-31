@@ -23,60 +23,74 @@ except NameError:
 STILL = 0
 CARDINALS = [1,2,3,4]
 
+def moveCharLookup(dirs):
+	#moves_logger.debug("Getting move char from %s" % dirs)
+	if len(dirs) == 1:
+		if 1 in dirs:
+			char = "^"
+		elif 2 in dirs:
+			char = ">"
+		elif 3 in dirs:
+			char = "v"
+		elif 4 in dirs:
+			char = "<"
+		elif 0 in dirs:
+			char = "O"
+	elif len(dirs) == 2:
+		if 1 in dirs:
+			if 2 in dirs:
+				char = "7"
+			elif 3 in dirs:
+				char = "|"
+			elif 4 in dirs:
+				char = "r"
+		elif 2 in dirs:
+			if 3 in dirs:
+				char = "J"
+			elif 4 in dirs:
+				char = "-"
+		elif 3 in dirs:
+			char = "L"
+	elif len(dirs) == 3:
+		if not 1 in dirs:
+			char = "U"
+		elif not 2 in dirs:
+			char = "["
+		elif not 3 in dirs:
+			char = "n"
+		elif not 4 in dirs:
+			char = "]"
+	elif len(dirs) == 4:
+		char = "+"
+	else:
+		char = "X"
+		
+	#moves_logger.debug("Found: %s" % char)
+	return " %s " % char
+
+
 def setMapChar(move_dict, move):
 	char = " X "
 	moves_logger.debug("Move options: %s" % move)
 	loc = move.loc
 	dirs = set(move.getDirections())
-	if len(dirs) == 1:
-		if 1 in dirs:
-			char = " ^ "
-		elif 2 in dirs:
-			char = " > "
-		elif 3 in dirs:
-			char = " v "
-		elif 4 in dirs:
-			char = " < "
-		elif 0 in dirs:
-			char = " O "
-	if len(dirs) == 2:
-		if 1 in dirs:
-			if 2 in dirs:
-				char = " 7 "
-			elif 3 in dirs:
-				char = " | "
-			elif 4 in dirs:
-				char = " r "
-		elif 2 in dirs:
-			if 3 in dirs:
-				char = " J "
-			elif 4 in dirs:
-				char = " - "
-		elif 3 in dirs:
-			char = " L "
-	elif len(dirs) == 3:
-		if not 1 in dirs:
-			char = " U "
-		elif not 2 in dirs:
-			char = " [ "
-		elif not 3 in dirs:
-			char = " n "
-		elif not 4 in dirs:
-			char = " ] "
-	elif len(dirs) == 4:
-		char = " + "
-			
-	move_dict[loc] = char
+	
+	move_dict[loc] = moveCharLookup(dirs)
 
-def getMoveMap(moves):
+def getMoveMap(moves = None, move_dict = None):
 	s = "\n"
 	t = gameMap.getTerritory(gameMap.playerTag)
 	
-	move_dict = {}
-	for move in moves:
-		setMapChar(move_dict, move)
+	if moves is None:
+		moves = []
+	
+	if move_dict is None:
+		move_dict = {}
+		for move in moves:
+			setMapChar(move_dict, move)
 		
-		
+	if not move_dict:
+		return
 	#move_dict = {move.loc: move.direction for move in moves}
 	
 	# Header row
@@ -282,7 +296,7 @@ class MoveFork:
 		
 	def output_all_moves(self):
 		from networking2 import sendString
-		self.move_list = self.resolve_moves_iteratively(pending=self.move_list)
+		#self.move_list = self.resolve_moves_iteratively(pending=self.move_list)
 		
 		returnString = ""
 		for move in self.move_list:

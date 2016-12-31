@@ -8,7 +8,7 @@ import logging
 import traceback
 from random import shuffle
 
-map_logger = logging.getLogger('map')
+map_logger = logging.getLogger('bot')
 try:
 	if len(map_logger.handlers) < 1:
 		base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
@@ -144,8 +144,12 @@ def getStringTest():
 	return s
 	
 def getString():
-	return sys.stdin.readline().rstrip('\n')
+	line = sys.stdin.readline().rstrip('\n')
+	map_logger.debug("Game State: %s" % line)
+	return line
 
+	
+local_maxima = None
 def getInit(getString=getString):
 	global playerTag
 	playerTag = int(getString())
@@ -163,17 +167,22 @@ def getInit(getString=getString):
 	
 	deserializeMap(m, getString())
 	
-	#m.findLocalMaxima(production_min_set)
+	global local_maxima
+	local_maxima = m.findLocalMaxima(production_min_set)
 	
 	return (playerTag, m)
 
 def sendInit(name):
 	sendString(name)
 
-def getFrame():
+def getFrame(test_string = None):
 	m = GameMap(_width, _height, playerTag = playerTag)
-	deserializeMap(m, getString())
+	if test_string:
+		deserializeMap(m, test_string)
+	else:
+		deserializeMap(m, getString())
 	m.defineTerritories()
+	m.local_maxima = local_maxima
 	return m
 
 def sendFrame(moves):

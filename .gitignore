@@ -13,3 +13,5 @@ halite.io/
 mybot.stats
 replay.hlt
 stats/
+*.hlt
+*.xlsx

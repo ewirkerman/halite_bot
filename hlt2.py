@@ -42,7 +42,7 @@ class Location:
 		#for c in key:
 		#	ikey += str(ord(c))
 		#return int(ikey)
-
+	
 class Site:
 	def __init__(self, owner=0, strength=0, production=0, friends = [], neutrals = 4, enemies = [], loc = None):
 		self.owner = owner
@@ -219,6 +219,17 @@ class GameMap:
 	def getLocation(self, loc, direction = STILL):
 		return self.getLocationXY(loc.x, loc.y, direction)
 		
+	def neighbors(self, loc, n=1, include_self=False):
+	#"Iterable over the n-distance neighbors of a given loc.  For single-step neighbors, the enumeration index provides the direction associated with the neighbor."
+		assert isinstance(include_self, bool)
+		assert isinstance(n, int) and n > 0
+		if n == 1:
+			combos = ((0, -1), (1, 0), (0, 1), (-1, 0), (0, 0))   # NORTH, EAST, SOUTH, WEST, STILL ... matches indices provided by enumerate(game_map.neighbors(square))
+		else:
+			combos = ((dx, dy) for dy in range(-n, n+1) for dx in range(-n, n+1) if abs(dx) + abs(dy) <= n)
+		return (self.contents[(loc.y + dy) % self.height][(loc.x + dx) % self.width] for dx, dy in combos if include_self or dx or dy)
+
+		
 	def updateLocationDirection(self, x,y,loc_key,direction):
 		if direction != STILL:
 			if direction == NORTH:
@@ -268,28 +279,98 @@ class GameMap:
 		if not self.territories.get(owner):
 			self.territories[owner] = Territory(owner, self)
 		return self.territories[owner]
+	
+	def getEnemyTerritories(self, owner = None):
+		for player in range(1,6):
+			if not self.territories.get(owner):
+				self.territories[owner] = Territory(owner, self)
+			
+		ts = [t for t in self.territories.values() if t.owner != self.playerTag and t.territory]
+		return ts
 
 	def clearTerritories(self):
 		self.territories = {}
+		
+	def closestInSets(self, set, other_set):
+		class DistPair:
+			def __init__(self, first, second):
+				self.loc = first
+				self.other_loc = second
+				self.dist = getDistance(first, second)
+			
+			def __lt__(self, other):
+				return self.dist < other.dist
+				
+			def __str__(self):
+				return self.loc.__str__() + "->" + self.dist + "->" + self.other_loc.__str__()
+				
+		heap = []
+		
+		for loc in set:
+			for other_loc in other_set:
+				pair = DistPair(loc, other_loc)
+				logger.debug("Pushing %s" % pair)
+				heapq.heappush(pair)
+		
+		return heap[0]
 		
 	def getTerritories(self):
 		return self.territories.values()
 		
 	def findLocalMaxima(self, seed_min_set):
-		this_wave = [self.getLocationXY(0,0)]
-		already_waved = this_wave
-		while len(this_wave) > 0:
-			next_wave = []
-			for loc in this_wave:
-				logger.debug("Maxima loc: %s" % loc)
-				spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
-				for spread_loc in spread_locs:
-					next_wave.append(spread_loc)
-				if all([spread_loc.site.production <= loc.site.production for spread_loc in spread_locs]):
-					self.local_maxima.append(loc)
-			already_waved.extend(this_wave)
-			this_wave = next_wave
-		logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
+	#	this_wave = [self.getLocationXY(0,0)]
+	#	already_waved = this_wave
+	#	while len(this_wave) > 0:
+	#		next_wave = []
+	#		for loc in this_wave:
+	#			logger.debug("Spreading location to check: %s" % loc)
+	#			spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
+	#			for spread_loc in spread_locs:
+	#				next_wave.append(spread_loc)
+	#			if all([spread_loc.site.production <= loc.site.production for spread_loc in spread_locs]):
+	#				self.local_maxima.append(loc)
+	#		already_waved.extend(this_wave)
+	#		this_wave = next_wave
+	#		logger.debug("Local Maxima: %s" % debug_list(this_wave))
+	#	logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
+		used_tiles = set()
+		for tile in [self.getLocationXY(x,y) for x in range(self.width) for y in range(self.height)]:
+			if tile not in used_tiles:
+				used_tiles.add(tile)
+				this_set = set([tile])
+				spread_set = set([tile])
+				spoiled = False
+				while spread_set:
+					next_set = list(spread_set)
+					spread_set = set()
+					logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
+					for loc in next_set:
+						for neighbor in [self.getLocation(loc, d) for d in CARDINALS]:
+
+							if neighbor.site.production > loc.site.production:
+								if not spoiled:
+									logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
+									spoiled = True
+							elif neighbor in used_tiles or neighbor in this_set:
+								continue
+							elif neighbor.site.production == loc.site.production:
+								logger.debug("Spreading to: %s" % neighbor)
+								spread_set.add(neighbor)
+					this_set.update(spread_set)
+						
+				if not spoiled:
+					logger.debug("Found a local maxima set: %s" % debug_list(this_set))
+					self.local_maxima.append(this_set)
+				else:
+					logger.debug("Spoiled set completed: %s" % debug_list(this_set))
+					pass
+				used_tiles.update(this_set)
+		
+		logger.debug("Maxima sets:")
+		for maxima in self.local_maxima:
+			logger.debug("%s" % debug_list(maxima))
+			pass
+		return self.local_maxima
 		
 		
 	def setupFringeLoc(self, loc):
@@ -314,9 +395,13 @@ class GameMap:
 				#logger.debug("Friends: %s" % debug_list(site.friends))
 				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
 				#logger.debug("Enemies: %s" % debug_list(site.enemies))
-				fdirs = [ getOppositeDir(d) for move in site.friends for d in move.getDirections()]
+				if t.owner == t.map.playerTag:
+					moveset = site.friends
+				else:
+					moveset = site.enemies
+				dirs = [ getOppositeDir(d) for move in moveset for d in move.getDirections()]
 				#logger.debug("fdirs: %s" % fdirs)
-				for dir in [d for d in CARDINALS if not d in fdirs]:
+				for dir in [d for d in CARDINALS if not d in dirs]:
 					new_loc = self.getLocation(loc, dir)
 					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
 					t.addFringe(new_loc)

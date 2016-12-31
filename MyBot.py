@@ -20,7 +20,7 @@ from claim import *
 import logging
 logger = logging.getLogger('bot')
 
-base_formatter = logging.Formatter("%(asctime)s : %(levelname)s %(message)s")
+base_formatter = logging.Formatter("%(levelname)s %(message)s")
 log_file_name = 'bot.debug'
 hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
@@ -49,40 +49,7 @@ def remove_sublist(main, sub):
 	
 
 
-	
-def findFronts(t, mf):
-	logger.debug("Attacking fronts")
-
-	t.fronts = [f for f in t.fringe if gameMap.getSite(f).strength == 0]
-	if len(t.fronts) == 0:
-		t.fronts = t.fringe
-	
-	n = Attack(gameMap)
-	return n.get_moves(t.fronts, [], mf.get_unused_moves(), turnCounter)
-	
-	
-	
-def addressNeeds(needy_locations, mf, need_limit = balance.getNeedLimit()):
-	### This is the Need-based assist pattern
-	logger.debug("Finding needs")
-	
-	needs = []
-	try:
-		for loc in needy_locations[:]:
-			site = gameMap.getSite(loc)
-			n = Need(site, gameMap, mf.get_unused_moves())
-			needs.append(n)
-			moves = n.get_moves()
-			if len(moves) < need_limit:
-				mf.submit_moves(moves)
-	except NeedError:
-		pass
-	
-	logger.debug("Need Map (%s and shorter): %s" % (need_limit, getMoveMap([item for sublist in needs for item in sublist.moves])))
-
-	
 gameMap = None
-contacted = False
 def main():
 	clock = time.clock()
 	global turnCounter
@@ -90,7 +57,9 @@ def main():
 	
 	turnCounter += 1
 	logger.debug("****** PREP TURN %d ******" % turnCounter)
-	gameMap = getFrame()
+	test_frame = None
+	# test_frame = "1 2 1 0 2 1 5 0 11 2 3 0 2 1 7 0 7 2 4 0 3 1 6 0 3 2 2 0 2 2 4 0 2 1 7 0 3 2 2 0 2 2 3 0 5 1 2 0 1 1 2 0 2 2 3 0 2 2 2 0 10 1 1 0 1 2 5 0 1 2 2 0 11 1 6 0 2 2 2 0 10 1 6 0 1 2 3 0 9 1 6 0 2 2 3 0 9 1 6 0 1 2 2 0 9 1 1 0 1 1 5 0 2 2 1 0 1 1 1 0 2 1 2 0 3 1 6 0 3 2 4 0 2 1 2 0 3 1 6 0 4 2 3 0 2 1 2 0 3 1 6 0 4 2 4 0 1 1 7 0 1 2 2 0 5 2 3 0 1 2 6 0 11 2 1 0 2 2 6 0 14 2 6 0 12 2 1 0 1 2 6 0 11 2 1 0 1 2 8 0 10 2 1 0 4 87 9 6 86 74 81 88 78 4 6 0 159 7 4 0 3 6 12 6 112 119 103 6 8 46 63 65 60 80 123 114 8 15 0 94 6 8 4 72 180 172 133 16 15 18 119 121 110 142 202 186 5 0 55 128 124 24 0 119 186 160 122 25 4 22 214 202 161 175 213 185 0 6 0 125 121 18 105 140 135 119 5 5 35 3 6 189 135 24 143 116 159 0 109 125 131 14 7 106 83 3 58 28 27 3 3 3 6 14 16 61 40 103 133 152 161 85 0 56 0 64 0 109 38 122 17 61 4 12 6 16 81 117 157 181 172 75 132 4 0 84 36 5 158 7 30 11 21 4 3 14 116 140 174 181 147 61 82 40 119 125 0 18 8 48 10 199 6 24 16 121 122 129 173 170 115 7 0 55 99 101 23 5 18 7 179 230 19 95 18 124 130 118 138 150 110 255 51 61 3 0 37 0 3 58 250 134 34 106 6 78 88 81 74 86 3 0 87 12 72 33 4 113 96 9 0 0 114 123 80 60 65 63 8 6 4 103 119 112 119 57 0 124 128 6 90 116 186 202 142 110 121 119 27 49 0 122 172 180 140 21 40 121 125 3 254 69 185 213 175 161 202 214 0 8 5 0 160 186 106 0 73 131 125 109 0 0 116 143 14 135 189 4 3 12 10 5 119 135 56 0 0 161 152 133 103 0 0 6 49 113 0 3 6 18 15 0 78 83 0 95 75 172 181 157 117 81 31 4 6 4 100 12 91 0 95 45 167 2 20 10 61 147 181 174 140 116 0 15 24 21 0 30 0 6 20 24 0 12 55 21 48 115 170 173 129 122 255 0 12 30 30 40 8 32 87 0 2 119 14 51 65 110 150 138 118 130 124 3 6 12 32 20 42 18 0 3 6 99 "
+	gameMap = getFrame(test_frame)
 	gameMap.turnCounter = turnCounter
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
@@ -99,39 +68,144 @@ def main():
 	
 	mf = MoveFork(gameMap, t.territory)
 	
-	#logger.debug("New Needies: %s" % debug_list(needy_locations))
+	######## Root Claim Generation
 	
-	#early_moves, late_moves = findFronts(t, mf)
-	#
-	#logger.debug("Early Attack Map: " + getMoveMap(early_moves))
-	#mf.submit_moves(early_moves)
-	#
-	#needy_locations = sorted(t.fringe, key=balance.evaluateMapSite(gameMap))
-	#needy_locations.reverse()
-	#addressNeeds(needy_locations, mf)
-	#
-	#logger.debug("Late Attack Map: " + getMoveMap(late_moves))
-	#mf.submit_moves(late_moves, weak=True)
-	root_claims = [Claim(gameMap, loc) for loc in t.fringe]
-	for claim in sorted(root_claims):
+	all_capped_claims = []
+	all_uncapped_claims = []
+	all_capped_claims = [ ]
+	for loc in t.fringe:
+		if loc.site.strength or not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
+			c_claim = CappedClaim(gameMap, loc)
+			c_claim.site.heap.add_claim(c_claim)
+			all_capped_claims.append(c_claim)
+	
+	
+	percentile_capped_list = list(all_capped_claims)
+	heapq.heapify(percentile_capped_list)
+	keep_top_percent = .2
+	for	i in range(int(len(all_capped_claims)*keep_top_percent)):
+		heapq.heappop(percentile_capped_list)
+	gameMap.target_uncapped_value = percentile_capped_list and percentile_capped_list[0].value or 1
+	logger.debug("target_uncapped_value = %s" % gameMap.target_uncapped_value)
+	
+	enemy_roots = set()
+	for t in gameMap.getEnemyTerritories():
+		for loc in t.fringe:
+			if loc.site.strength == 0 or loc.site.friends:
+				enemy_roots.add(loc)
+	
+	for loc in enemy_roots:
+		claim = UncappedClaim(gameMap, loc)
+		logger.debug("Created enemy_fringe claim: %s" % claim)
+		all_uncapped_claims.append(claim)
+	
+	all_capped_claims = [claim for claim in all_capped_claims if claim.value > 0]
+	
+	
+	
+	####### Natural separation if there are no outside threats
+	all_uncapped_claims = [claim for claim in all_uncapped_claims if claim.value > 0]
+	if not all_uncapped_claims:
+		for claim in all_capped_claims:
+			uc_claim = UncappedClaim(gameMap, claim.loc)
+			uc_claim.value = .0000001
+			uc_claim.site.heap.add_claim(uc_claim)
+			all_uncapped_claims.append(uc_claim)
+
+	
+	
+	
+	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
+	logger.debug("all_uncapped_claims: %s" % debug_list(all_uncapped_claims) )
+	
+	
+	######## Uncapped Claim Processing
+	
+	uncapped_claims = list(all_uncapped_claims)
+	while uncapped_claims:
+		for claim in uncapped_claims:
+			claim.spread()
+			
+		uncapped_claims = [c for c in uncapped_claims if c.still_expanding]
+	
+	m_d = {}
+	for claim in all_uncapped_claims:
+		m_d.update(claim.build_map_dict())
+	if m_d:
+		logger.debug("Uncapped Map %s: %s" % (turnCounter, getMoveMap(move_dict = m_d)) )
+		pass
+	
+		
+	for claim in all_uncapped_claims:
+		for i in range(claim.max_gen,-1,-1):
+			gen = claim.gens[i]
+			logger.debug("Snipping %s - gen %s: %s" % (claim, i, gen))
+			for child in gen:
+				child.snip()
+	
+	######## Capped Claim Processing
+	
+	capped_claims = list(all_capped_claims)
+	while capped_claims:
+		claim = capped_claims[0]
 		logger.debug("")
-		logger.debug("Expanding seed claim %s" % (claim.loc) )
+		logger.debug("Expanding seed claim %s" % (claim) )
 		claim.trigger()
+		m_d = claim.build_map_dict()
+		if m_d:
+			# logger.debug("Trigger Map %s: %s" % (turnCounter, getMoveMap(move_dict = m_d)) )
+			pass
+		capped_claims = [c for c in all_capped_claims if c.still_expanding]
+	
+	######### Re-"snip" uncapped, this will give them 
+	# 
+	# uncapped_claims = list(all_uncapped_claims)
+	# for claim in uncapped_claims:
+	# 	for _, gen in claim.gens.items():
+	# 		for claim in gen:
+	# 			claim.snip()
+	
+	
+	######## Capped Claim Moves
 		
 	moves = []
-	for claim in root_claims:
-		c_moves = claim.get_as_moves()
-		logger.debug("Claim %s moves: %s" % (claim.loc,c_moves) )
-		moves.extend(c_moves)
+	for claim in all_uncapped_claims:
+		moves.extend(claim.get_as_moves())
+	for claim in all_capped_claims:
+		moves.extend(claim.get_as_moves())
 	
-	logger.debug("Claim Map: " + getMoveMap(moves))
+	c_moves = []
+	for claim in all_capped_claims:
+		c_moves.extend(claim.get_as_moves())
+	if (c_moves):
+		logger.debug("allc map %s: %s" % (turnCounter, getMoveMap(c_moves)) )
+		pass
+
+	
+	
+	
+	
+	######## Uncapped Claim Moves
+		
+	c_moves = []
+	for claim in all_uncapped_claims:
+		c_moves.extend(claim.get_as_moves())
+	if (c_moves):
+		logger.debug("allu map %s: %s" % (turnCounter, getMoveMap(c_moves)) )
+		pass
+	else:
+		logger.debug("allu map %s: %s" % (turnCounter, getMoveMap([Move(gameMap.getLocationXY(0,0),0)])) )
+		pass
+	
+	
+
+	if test_frame:
+		raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
-					
 	mf.output_all_moves()
 	gameMap.clearTerritories()
 	logger.debug("****** END TURN %d (time=%s) ******" % (turnCounter,time.clock()-clock))
-
-#testBot()
+# testBot()
 		
 		
 try:
@@ -145,13 +219,16 @@ turnCounter = -1
 
 def main_loop():
 	while True:
-		main()
-		#currpath = 'stats\mybot-currturn.stats'
-		#lastpath = 'stats\mybot-lastturn.stats'
-		#if os.path.exists(currpath):
-		#	if os.path.exists(lastpath):
-		#		os.remove(lastpath)
-		#	os.rename(currpath, lastpath)
-		#cProfile.run('main()', currpath)
+		profiling = False
+		if not profiling:
+			main()
+		else:
+			currpath = 'stats\mybot-currturn.stats'
+			lastpath = 'stats\mybot-lastturn.stats'
+			if os.path.exists(currpath):
+				if os.path.exists(lastpath):
+					os.remove(lastpath)
+				os.rename(currpath, lastpath)
+			cProfile.run('main()', currpath)
 #cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

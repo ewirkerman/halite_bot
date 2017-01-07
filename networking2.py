@@ -106,6 +106,10 @@ def deserializeMap(m, inputString):
 	x = 0
 	counter = 0
 	owner = 0
+	for a in range(0, _height):
+		for b in range(0, _width):
+			m.contents[a][b].production = _productions[a][b]
+	
 	while y != m.height:
 		counter = int(splitString.pop(0))
 		owner = int(splitString.pop(0))
@@ -115,6 +119,7 @@ def deserializeMap(m, inputString):
 			m.contents[y][x].owner = owner
 			#map_logger.debug("Retrieving Loc")
 			loc = m.getLocationXY(x,y)
+			loc.gameMap = m
 			if owner > 0:
 				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
@@ -127,7 +132,7 @@ def deserializeMap(m, inputString):
 		for b in range(0, _width):
 			m.contents[a][b].strength = int(splitString.pop(0))
 			m.contents[a][b].projected_str = m.contents[a][b].strength
-			m.contents[a][b].production = _productions[a][b]
+			# m.contents[a][b].production = _productions[a][b]
 
 	logger.debug("Deserializing complete")
 	return m

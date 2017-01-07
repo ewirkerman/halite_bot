@@ -20,7 +20,7 @@ from claim import *
 import logging
 logger = logging.getLogger('bot')
 
-base_formatter = logging.Formatter("%(levelname)s %(message)s")
+base_formatter = logging.Formatter("%(message)s")
 log_file_name = 'bot.debug'
 hdlr = logging.FileHandler(log_file_name)
 hdlr.setFormatter(base_formatter)
@@ -46,8 +46,34 @@ def remove_sublist(main, sub):
 	
 ### when total production is low, should be favor sites with lower strenght
 ### when total production is high, should be favor sites with higher production
-	
 
+def claims_to_map(title, turnCounter, claims):
+	m_d = {}
+	for claim in claims:
+		m_d.update(claim.build_map_dict())
+	if m_d:
+		logger.debug("%s %s: %s" % (title, turnCounter, getMoveMap(move_dict = m_d)) )
+		pass
+
+def layered_iteration(seed, func):
+	curr_wave = seed
+	done = set(seed)
+	results = []
+	while curr_wave:
+		next_wave = set()
+		for loc in curr_wave:
+			# logger.debug("Iterating over %s" % loc)
+			for move in loc.site.friends:
+				child_loc = move.loc
+				if child_loc not in done:
+					done.add(child_loc)
+					next_wave.add(child_loc)
+					# logger.debug("Iteration child %s" % child_loc)
+			if func:
+				results.append(func(loc))
+		curr_wave = next_wave
+	return results
+	
 
 gameMap = None
 def main():
@@ -63,7 +89,7 @@ def main():
 	gameMap.turnCounter = turnCounter
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
-	t = gameMap.getTerritory(myID)
+	t = gameMap.getTerritory()
 	center = t.getCenter()
 	
 	mf = MoveFork(gameMap, t.territory)
@@ -72,14 +98,15 @@ def main():
 	
 	all_capped_claims = []
 	all_uncapped_claims = []
-	all_capped_claims = [ ]
+	all_capped_claims = []
 	for loc in t.fringe:
 		if loc.site.strength or not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
 			c_claim = CappedClaim(gameMap, loc)
-			c_claim.site.heap.add_claim(c_claim)
+			# c_claim.site.heap.add_claim(c_claim)
 			all_capped_claims.append(c_claim)
 	
 	
+	#### Balancing of uncapped values
 	percentile_capped_list = list(all_capped_claims)
 	heapq.heapify(percentile_capped_list)
 	keep_top_percent = .2
@@ -89,8 +116,8 @@ def main():
 	logger.debug("target_uncapped_value = %s" % gameMap.target_uncapped_value)
 	
 	enemy_roots = set()
-	for t in gameMap.getEnemyTerritories():
-		for loc in t.fringe:
+	for terr in gameMap.getEnemyTerritories():
+		for loc in terr.fringe:
 			if loc.site.strength == 0 or loc.site.friends:
 				enemy_roots.add(loc)
 	
@@ -109,7 +136,6 @@ def main():
 		for claim in all_capped_claims:
 			uc_claim = UncappedClaim(gameMap, claim.loc)
 			uc_claim.value = .0000001
-			uc_claim.site.heap.add_claim(uc_claim)
 			all_uncapped_claims.append(uc_claim)
 
 	
@@ -119,87 +145,37 @@ def main():
 	logger.debug("all_uncapped_claims: %s" % debug_list(all_uncapped_claims) )
 	
 	
-	######## Uncapped Claim Processing
+	######## Claim Spreading
 	
-	uncapped_claims = list(all_uncapped_claims)
-	while uncapped_claims:
-		for claim in uncapped_claims:
-			claim.spread()
-			
-		uncapped_claims = [c for c in uncapped_claims if c.still_expanding]
+	for l in [list(all_uncapped_claims), list(all_capped_claims)]:
+		for claim in l:
+			claim.site.heap.add_claim(claim)
+		working_list = [c for c in l if c.is_top_claim()]
+		while working_list:
+			for claim in working_list:
+				logger.debug("")
+				logger.debug("Expanding seed %s claim %s" % (claim.max_gen, claim) )
+				claim.spread()
+				
+			working_list = [c for c in l if c.still_expanding]
+		logger.debug("\n\n")
+	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.frontier, get_loc_move))))
 	
-	m_d = {}
-	for claim in all_uncapped_claims:
-		m_d.update(claim.build_map_dict())
-	if m_d:
-		logger.debug("Uncapped Map %s: %s" % (turnCounter, getMoveMap(move_dict = m_d)) )
-		pass
-	
+	######## Claim Move Filtering
 		
-	for claim in all_uncapped_claims:
-		for i in range(claim.max_gen,-1,-1):
-			gen = claim.gens[i]
-			logger.debug("Snipping %s - gen %s: %s" % (claim, i, gen))
-			for child in gen:
-				child.snip()
+	logger.debug("")
+	logger.debug("Getting capped root claims as moves of %s's territory" % t.owner)
 	
-	######## Capped Claim Processing
-	
-	capped_claims = list(all_capped_claims)
-	while capped_claims:
-		claim = capped_claims[0]
-		logger.debug("")
-		logger.debug("Expanding seed claim %s" % (claim) )
-		claim.trigger()
-		m_d = claim.build_map_dict()
-		if m_d:
-			# logger.debug("Trigger Map %s: %s" % (turnCounter, getMoveMap(move_dict = m_d)) )
-			pass
-		capped_claims = [c for c in all_capped_claims if c.still_expanding]
-	
-	######### Re-"snip" uncapped, this will give them 
-	# 
-	# uncapped_claims = list(all_uncapped_claims)
-	# for claim in uncapped_claims:
-	# 	for _, gen in claim.gens.items():
-	# 		for claim in gen:
-	# 			claim.snip()
+	layered_iteration(t.fringe, find_loc_move)
+	moves = layered_iteration(t.frontier, get_loc_move)
 	
 	
-	######## Capped Claim Moves
-		
-	moves = []
-	for claim in all_uncapped_claims:
-		moves.extend(claim.get_as_moves())
-	for claim in all_capped_claims:
-		moves.extend(claim.get_as_moves())
-	
-	c_moves = []
-	for claim in all_capped_claims:
-		c_moves.extend(claim.get_as_moves())
-	if (c_moves):
-		logger.debug("allc map %s: %s" % (turnCounter, getMoveMap(c_moves)) )
-		pass
+	logger.debug("Moves map %s: %s" % (turnCounter, getMoveMap(moves)))
 
 	
 	
-	
-	
-	######## Uncapped Claim Moves
-		
-	c_moves = []
-	for claim in all_uncapped_claims:
-		c_moves.extend(claim.get_as_moves())
-	if (c_moves):
-		logger.debug("allu map %s: %s" % (turnCounter, getMoveMap(c_moves)) )
-		pass
-	else:
-		logger.debug("allu map %s: %s" % (turnCounter, getMoveMap([Move(gameMap.getLocationXY(0,0),0)])) )
-		pass
-	
-	
 
-	if test_frame:
+	if test_frame or turnCounter == 80:
 		raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()
@@ -219,6 +195,7 @@ turnCounter = -1
 
 def main_loop():
 	while True:
+		profiling = True
 		profiling = False
 		if not profiling:
 			main()

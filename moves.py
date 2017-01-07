@@ -35,7 +35,7 @@ def moveCharLookup(dirs):
 		elif 4 in dirs:
 			char = "<"
 		elif 0 in dirs:
-			char = "O"
+			char = "S"
 	elif len(dirs) == 2:
 		if 1 in dirs:
 			if 2 in dirs:
@@ -71,7 +71,7 @@ def moveCharLookup(dirs):
 
 def setMapChar(move_dict, move):
 	char = " X "
-	moves_logger.debug("Move options: %s" % move)
+	# moves_logger.debug("Move options: %s" % move)
 	loc = move.loc
 	dirs = set(move.getDirections())
 	

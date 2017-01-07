@@ -25,11 +25,13 @@ if ($seed) {
 	$seed="-s $seed"
 }
 
-Remove-Item *.hlt -Force
+
+$children = Get-ChildItem *.hlt
 
 $players
-.\halite.exe -d "$size $size" $players $seed
+.\halite.exe -d "$size $size" $players $seed -t
 
+Remove-Item $children -Force
 
 Move-Item *.log error.log -Force
 python printStats.py

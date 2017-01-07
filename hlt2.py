@@ -105,6 +105,7 @@ class Territory:
 			location = site.loc
 		self.territory.add(location)
 		self.production += site.production
+		# logger.debug("Adding %s production from %s to %s's territory" % (site.production, location, self.owner) )
 		self.strength += site.strength
 
 	def getLocations(self):
@@ -277,7 +278,9 @@ class GameMap:
 		if owner is None:
 			owner = self.playerTag
 		if not self.territories.get(owner):
+			# logger.debug("Creating territory for owner %s")
 			self.territories[owner] = Territory(owner, self)
+		# logger.debug("Found %s territory for owner %s" % (len(self.territories[owner].territory), owner))
 		return self.territories[owner]
 	
 	def getEnemyTerritories(self, owner = None):
@@ -343,26 +346,26 @@ class GameMap:
 				while spread_set:
 					next_set = list(spread_set)
 					spread_set = set()
-					logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
+					# logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
 					for loc in next_set:
 						for neighbor in [self.getLocation(loc, d) for d in CARDINALS]:
 
 							if neighbor.site.production > loc.site.production:
 								if not spoiled:
-									logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
+									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
 									spoiled = True
 							elif neighbor in used_tiles or neighbor in this_set:
 								continue
 							elif neighbor.site.production == loc.site.production:
-								logger.debug("Spreading to: %s" % neighbor)
+								# logger.debug("Spreading to: %s" % neighbor)
 								spread_set.add(neighbor)
 					this_set.update(spread_set)
 						
 				if not spoiled:
-					logger.debug("Found a local maxima set: %s" % debug_list(this_set))
+					# logger.debug("Found a local maxima set: %s" % debug_list(this_set))
 					self.local_maxima.append(this_set)
 				else:
-					logger.debug("Spoiled set completed: %s" % debug_list(this_set))
+					# logger.debug("Spoiled set completed: %s" % debug_list(this_set))
 					pass
 				used_tiles.update(this_set)
 		

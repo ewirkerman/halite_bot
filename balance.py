@@ -17,7 +17,7 @@ def evalSiteProduction(site, claim = None):
 	
 def evalSiteStrength(site):
 	# should cache the answer of this
-	s = max([site.strength, 1]) ** 1.5
+	s = max([site.strength, 1]) ** 1
 	return s
 
 def claim_combo__lt__(self, other):
@@ -32,9 +32,11 @@ def evaluate_claim_combo(claim_combo):
 	if claim_combo.parent.is_root():
 		strength -= claim_combo.parent.site.strength
 		#logging.getLogger("bot").debug("root strength=%s"% strength)
-	elif not claim_move_conditions(claim_combo.parent):
-		strength += claim_combo.parent.site.strength
-		# logging.getLogger("bot").debug("stationary strength=%s"% strength)
+	else:
+		#logging.getLogger("bot").debug("stationary strength=%s"% strength)
+		if not claim_move_conditions(claim_combo.parent):
+			strength += claim_combo.parent.site.strength + claim_combo.parent.site.production
+		pass
 	for claim in claim_combo:
 		strength += claim.site.strength
 		waste -= max([claim.site.strength + 2 * claim.site.production - 255, 0])
@@ -46,17 +48,22 @@ def evaluate_claim_combo(claim_combo):
 	# logging.getLogger("bot").debug("waste=%s"% waste)
 	# logging.getLogger("bot").debug("strength=%s"% strength)
 	
+	waste_avoidance = 4
+	
 	if claim_combo.parent.is_capped() and claim_combo.parent.is_root():
 		# if the combination doesn't actually solve the last layer, then spoil it by raising the strength
 		# this is a min heap, so the less strength we take it with, the better
 		if strength < 1:
 			strength += 1024
-		value = (strength + 4*waste)
+		value = (strength + waste_avoidance*waste)
 	else:
-		value = -1 * (strength - 4*waste)
+		value = -1 * (strength - waste_avoidance*waste)
 	# logging.getLogger("bot").debug("value=%s"% value)
 	return value
 
+def strength_limit(site):
+	return 255
+	
 def uncapped_claim_benefit(claim):
 	damage = 0
 	for move in claim.site.enemies:
@@ -65,7 +72,7 @@ def uncapped_claim_benefit(claim):
 		
 	
 	if claim.root is claim:
-		return .3*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
+		return .5*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
 	else:
 		return claim.root.benefit
 
@@ -79,23 +86,27 @@ def claim_move_conditions(claim, parent = None):
 		return False
 	return claim_move_conditions_parentless(claim)
 
-	
 def claim_move_conditions_parentless(claim):
-	#this needs to be locally decidable based on a child and its parent.  Right now it only looks at child and that's ok
-	# for capped claims, we can assume the parents aren't moving. For uncapped, it needs to be above the production threshhold
-	if claim.site.owner != claim.gameMap.playerTag:
-		return False
 	
+	
+	# Never move a tile you don't own
+	if claim.site.owner != claim.gameMap.playerTag or claim.site.strength == 0:
+		return False
+		
+	# raise Exception("#will move, vs. won't move but isn't going to anyone else vs. will go to someone else")	
 	if claim.root.is_capped():
-		return False
-	
-	
-	if ((claim.loc.x % 2 == claim.loc.y % 2) == (claim.gameMap.turnCounter % 2 == 0)) and not claim.gen == 1:
-		return False
+		return claim.gen == claim.root.max_gen and claim_complete_conditions(claim.root)
+		
+		
+	else: # UNCAPPED
+		if claim.gen == 1 and claim.root.site.strength > 0:
+			return False
+		else:
+			return claim.site.strength > claim.site.production*7
 
-	return claim.site.strength > claim.site.production*7
+	# Uncapped requirement for MOVE
 	
 	
 def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 	# logging.getLogger("bot").debug("Is %s + %s > %s? %s" % (claim.strength, this_gen_str, claim.cap, claim.strength + this_gen_str > claim.cap))
-	return claim.strength + this_gen_str > claim.cap
+	return claim.is_capped() and claim.strength + this_gen_str > claim.cap

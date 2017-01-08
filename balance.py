@@ -50,7 +50,7 @@ def evaluate_claim_combo(claim_combo):
 	
 	waste_avoidance = 4
 	
-	if claim_combo.parent.is_capped() and claim_combo.parent.is_root():
+	if claim_combo.parent.is_capped() and claim_combo.parent.is_root() and claim_combo.parent.site.strength > 0:
 		# if the combination doesn't actually solve the last layer, then spoil it by raising the strength
 		# this is a min heap, so the less strength we take it with, the better
 		if strength < 1:
@@ -72,7 +72,7 @@ def uncapped_claim_benefit(claim):
 		
 	
 	if claim.root is claim:
-		return .5*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
+		return 1*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
 	else:
 		return claim.root.benefit
 

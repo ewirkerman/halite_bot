@@ -52,25 +52,38 @@ def find_loc_move(loc, depth=0):
 			logger.debug("MOVE child %s accepted by parent %s" % (child.move, loc) )
 			child.site.heap.filter_to_loc(loc)
 			pass
-		elif child.will_move():
+		elif child.will_move() :
 			logger.debug("MOVE child %s rejected by parent %s" % (child.move, loc) )
 			child.site.heap.filter_out_loc(loc)
-			# raise Exception("The new parent may not know that we intend to move there. 56 - (16, 14) of https://nmalaguti.github.io/halite-visualizer/experimental.html?url=https%3A%2F%2Fcommunityhalitereplays.s3.amazonaws.com%2F1483766065-638340443.hlt.gz")
+			
+			try:
+				new_parent_loc = child.site.heap.get_best_claim().get_parents()[0].loc
+				logger.debug("Recursing to new parent")
+				find_loc_move( new_parent_loc, depth+1)
+				logger.debug("Recursing to new child")
+				find_loc_move( child.site.loc, depth+1)
+			except (AttributeError, IndexError):
+				pass
 			
 	# raise Exception("The uncapped claims aren't pulling the closest ones...")
 	if loc.site.owner == loc.gameMap.playerTag:
+		total_str = sum([child.site.strength for child in get_inbound_children(loc)]) + self.site.strength
 		if self.will_move() and not fake and (self.is_capped() or not self.is_checker_on()):
 			loc.site.heap.filter_to_loc(self.get_parent_loc())
 			logger.debug("Willing to move %s to %s" % ("HNESW"[self.get_parent_direction()[0]], self.get_parent_loc()) )
-			pass
+			return
+		# elif not self.will_move():
+			# self.move.setDirections(STILL)
+			# raise Exception("The tiles capped claims were moving prematurely so we need something to keep them still in the right circumstances but this isn't quite right yet.")
+		elif best and total_str > 255:
+			logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
+			biggest = max(best, key=get_claim_strength)
+			self.move.setDirections(util.getOppositeDir(biggest.get_parent_direction()[0]))
+			return
 		else:
-			if best:
-				total_str = sum([child.site.strength for child in best]) + self.site.strength + self.site.production
-				if total_str > 255:
-					biggest = max(best, key=get_claim_strength)
-					self.move.setDirections(util.getOppositeDir(biggest.get_parent_direction()[0]))
-			else:
-				self.move.setDirections(STILL)
+			logger.debug("Choosing to stay STILL, not rechecking old parent yet")
+			
+			self.move.setDirections(STILL)
 
 def get_loc_move(loc):
 	if loc.site.heap.get_best_claim():
@@ -375,8 +388,8 @@ class Claim:
 		#logger.debug("Merged: %s and %s" % (self, other))
 
 	def is_checker_on(self):
-		result = ((self.loc.x % 2 == self.loc.y % 2) == (self.gameMap.turnCounter % 2 == 0))
-		logger.debug("(%s == %s) == (%s == 0) ? %s" % (self.loc.x % 2, self.loc.y % 2, self.gameMap.turnCounter % 2, result))
+		result = ((self.loc.x % 2 == self.loc.y % 2) == (self.gameMap.turnCounter % 2 != 0))
+		logger.debug("(%s == %s) == (%s != 0) ? %s" % (self.loc.x % 2, self.loc.y % 2, self.gameMap.turnCounter % 2, result))
 		return result
 	
 	def get_value(self):
@@ -699,7 +712,7 @@ class UncappedClaim(Claim):
 			self.cost = 5 + self.gen
 			# if self.site.owner != map.playerTag:
 				# self.cost += self.site.strength
-			self.value = self.root.value * .8**self.gen
+			self.value = self.root.value * .95**self.gen
 			self.strength = self.site.strength
 			self.production = self.site.production
 				
@@ -766,7 +779,10 @@ class CappedClaim(Claim):
 			self.move = Move(self.loc, self.get_parent_direction()[0])
 			self.benefit = self.root.benefit
 			self.cost = parent.cost + self.site.production
-			self.value = self.root.value * .9 ** self.gen
+			if self.root.site.strength == 0:
+				self.value = self.root.value / (self.site.strength or 1)
+			else:
+				self.value = self.root.value * .9 ** self.gen
 			self.strength = self.site.strength
 			self.production = self.site.production
 		

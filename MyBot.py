@@ -102,7 +102,6 @@ def main():
 	for loc in t.fringe:
 		if loc.site.strength or not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
 			c_claim = CappedClaim(gameMap, loc)
-			# c_claim.site.heap.add_claim(c_claim)
 			all_capped_claims.append(c_claim)
 	
 	
@@ -175,8 +174,8 @@ def main():
 	
 	
 
-	if test_frame or turnCounter == 80:
-		raise Exception("Test Frame Ended")
+	# if test_frame or turnCounter == 80:
+		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()
 	gameMap.clearTerritories()

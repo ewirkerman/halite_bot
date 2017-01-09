@@ -258,11 +258,10 @@ class GameMap:
 			location_cache[loc_key][STILL] = Location(x,y)
 	
 	def getLocationXY(self, x, y, direction = STILL):
-		loc_key = 1/2*(x + y)*(x + y + 1) + y
-		#logger.debug(str(len(location_cache)) + " " + loc_key)
+		loc_key = x*self.width + y
 		if not location_cache.get(loc_key):
 			location_cache[loc_key] = {}
-		if not location_cache[loc_key].get(direction):
+		if direction not in location_cache[loc_key]:
 			self.updateLocationDirection(x,y,loc_key,direction)
 			
 		return location_cache[loc_key][direction]

@@ -82,7 +82,7 @@ def claim_combo_valid(claim_combo):
 	return True
 	
 def claim_move_conditions(claim, parent = None):
-	if not claim.get_parents():
+	if not claim.get_parent():
 		return False
 	return claim_move_conditions_parentless(claim)
 

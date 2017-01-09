@@ -195,7 +195,7 @@ turnCounter = -1
 def main_loop():
 	while True:
 		profiling = True
-		profiling = False
+		# profiling = False
 		if not profiling:
 			main()
 		else:

@@ -315,8 +315,8 @@ class MoveFork:
 	def submit_move(self, move, weak=False):
 		loc = move.loc
 		site = loc.site
-		if site.strength == 0:
-			move = Move(loc, 0)
+		# if site.strength == 0:
+			# move = Move(loc, 0)
 		
 		# This will raise an exception if you try to use a move twice because you won't be able to remove it
 		

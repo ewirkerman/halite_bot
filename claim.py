@@ -18,22 +18,47 @@ def create_claim(gameMap, loc):
 def get_claim_strength(claim):
 		return claim.site.strength
 		
-def get_inbound_children(loc):
-	inbound = []
-	for site in loc.gameMap.neighbors(loc, n=1):
-		try:
-			if site.heap.get_best_claim().get_parent().site.loc == loc:
-				inbound.append(site.heap.get_best_claim())
-		except (AttributeError, IndexError):
-			continue
-	return inbound
+def get_inbound_children(center_loc):
+	return center_loc.site.heap.inbound_children
+	# inbound = []
+	# for site in center_loc.gameMap.neighbors(center_loc, n=1):
+		# try:
+			# best = site.heap.get_best_claim()
+			# if best.get_parent().site.loc == center_loc:
+				# inbound.append(best)
+		# except (AttributeError, IndexError):
+			# continue
+	# return inbound
+	
+def check_new_parent(child, depth):
+	try:
+		new_parent_loc = child.site.heap.get_best_claim().get_parent().loc
+		logger.debug("\t" * (depth-1) +"Recursing to new parent")
+		find_loc_move( new_parent_loc, depth+1)
+		logger.debug("\t" * (depth-1) +"Recursing to new child")
+		find_loc_move( child.site.loc, depth+1)
+		logger.debug("\t" * (depth-1) +"Done recursing to new child")
+	except (AttributeError, IndexError):
+		pass
 		
+def breach_escape_eval(t):
+	site = t[0]
+	projected = 0
+	best = site.heap.get_best_claim()
+	if best and not best.will_move():
+		projected += site.strength
+	projected += site.heap.inbound_str
+	if site.owner == 0:
+		projected += 1024
+	return projected
+		
+	
 		
 def find_loc_move(loc, depth=0):
 	children = get_inbound_children(loc)
-	logger.debug("\tFiltering (depth = %s) children of %s: %s" % (depth, loc, debug_list(children)) )	
+	logger.debug("\t" * depth + "Filtering (depth = %s) children of %s (owned by %s): %s" % (depth, loc, loc.site.owner, debug_list(children)) )	
 	moveable_children = [child for child in children if child.will_move()]
-	logger.debug("moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
+	logger.debug("\t" * depth + "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
 	
 	self = loc.site.heap.get_best_claim()
 	
@@ -42,73 +67,166 @@ def find_loc_move(loc, depth=0):
 		fake = True
 		self = UncappedClaim(loc.gameMap, loc)
 		self.gen = 2
-
-	best = self.get_best_children(moveable_children)
-	total_str = 255
-	if best:
-		total_str = sum([child.site.strength for child in best]) + self.site.strength + self.site.production
-	for child in children:
-		# if self.is_capped() and self.site.enemies:
-			# logger.debug("Avoiding %s because breach" % loc)
-			# try:
-				# child.site.heap.pop_claim()
-				# new_parent_loc = child.site.heap.get_best_claim().get_parents()[0].loc
-				# logger.debug("Recursing to new parent")
-				# find_loc_move( new_parent_loc, depth+1)
-				# logger.debug("Recursing to new child")
-				# find_loc_move( child.site.loc, depth+1)
-			# except (AttributeError, IndexError):
-				# pass
 		
-		logger.debug("Lazy load these moves, creating the move objects is taking a ton of time")
-		if child in best and (self.is_capped() or self.is_checker_on()):
-			logger.debug("MOVE child %s accepted by parent %s" % (child.move, loc) )
-			child.site.heap.filter_to_loc(loc)
-			pass
-		elif child.will_move() :
-			logger.debug("MOVE child %s rejected by parent %s" % (child.move, loc) )
-			child.site.heap.filter_out_loc(loc)
-			
-			try:
-				new_parent_loc = child.site.heap.get_best_claim().get_parent().loc
-				logger.debug("Recursing to new parent")
-				find_loc_move( new_parent_loc, depth+1)
-				logger.debug("Recursing to new child")
-				find_loc_move( child.site.loc, depth+1)
-			except (AttributeError, IndexError):
-				pass
-			
-	# raise Exception("The uncapped claims aren't pulling the closest ones...")
+	parent = self.get_parent()
+	
+	raise Exception("Geet real child consent here, so we can actually reject the others")
+		
+	# the strength of enemies that could attack the parent loc
+	parent_e_str = self.gameMap.get_enemy_strength(parent.loc)
+	breach_str = 0
+	if parent_e_str:
+		breach_str = self.gameMap.get_enemy_strength(parent.loc, range = 1)
+	logger.debug("\t" * depth + "Is %s breach_str greater than %s neutral parent strength?" %(breach_str, parent.site.strength))
+	best = self.get_best_children(moveable_children)
+	breach = not self.is_root() and parent.is_root() and parent.site.strength and parent.site.strength < breach_str
+	if breach:
+		logger.debug("BREACH!!" )
+		pass
+	
+	# Figure out our own, then our children
 	if loc.site.owner == loc.gameMap.playerTag:
-		total_str = sum([child.site.strength for child in get_inbound_children(loc)]) + self.site.strength
-		if self.will_move() and not fake and (self.is_capped() or not self.is_checker_on()):
-			loc.site.heap.filter_to_loc(self.get_parent_loc())
-			logger.debug("Willing to move %s to %s" % ("HNESW"[self.get_parent_direction()], self.get_parent_loc()) )
-			return
-		# elif not self.will_move():
-			# self.move.setDirections(STILL)
-			# raise Exception("The tiles capped claims were moving prematurely so we need something to keep them still in the right circumstances but this isn't quite right yet.")
-		elif best and total_str > 255:
-			logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
-			biggest = max(best, key=get_claim_strength)
-			self.dir = util.getOppositeDir(biggest.get_parent_direction())
-			return
-		else:
-			logger.debug("Choosing to stay STILL, not rechecking old parent yet")
+		total_str = self.site.heap.inbound_str + self.site.strength
+		self.loc.site.heap.dir = None
+		will_move = self.will_move()
+		is_checker = self.is_checker_on()
+		# Last gen of a collapsing capped claim
+		if will_move and self.is_capped():
+			if self.root.site.strength and not self.site.strength:
+				logger.debug("\t" * depth +"%s shouldn't move even for a capped claim because I'll add nothing" % self)
+				self.site.heap.dir = STILL
+				# return
+			else:
+				logger.debug("\t" * depth +"Willing to move %s%s %s to %s (e:%s)" % (self.is_capped() and "C" or "U",self.site.strength,"HNESW"[self.dir], parent.loc, parent_e_str) )
+				# loc.site.heap.filter_to_loc(parent.loc)
+				self.site.heap.dir = self.dir
+				# return
+		
+		# If moving deals more enemy damage than staying still, move
+		#elif will_move and not is_checker and self.site.strength * len(parent.site.enemies) > self.site.production:
+		elif will_move and self.site.strength * len(parent.site.enemies) > self.site.production:
+			logger.debug("\t" * depth +"%s attacking off checker because that'll deal more damage than staying" % self)
+			# loc.site.heap.filter_to_loc(parent.loc)
+			self.site.heap.dir = self.dir
+			# return
 			
-			self.dir = STILL
+		# If you can safely expand, do so
+		elif will_move and parent_e_str == 0 and parent.site.owner == 0:
+			logger.debug("\t" * depth +"%s expanding off checker because it's safe to do so" % self)
+			# loc.site.heap.filter_to_loc(parent.loc)
+			self.site.heap.dir = self.dir
+			# return
+		
+		# Since you're internal and big enough, move to checker
+		elif will_move and not is_checker and self.site.strength > self.site.production * 7:
+			# loc.site.heap.filter_to_loc(parent.loc)
+			self.site.heap.dir = self.dir
+			logger.debug("\t" * depth +"Willing to move %s%s %s to %s (e:%s)" % (self.is_capped() and "C" or "U",self.site.strength,"HNESW"[self.dir], parent.loc, parent_e_str) )
+			# return
+			
+		elif breach and self.site.strength:
+			options = [(self.gameMap.getSite(self.loc, dir), dir) for dir in CARDINALS]
+			options.sort(key=breach_escape_eval)
+			self.site.heap.dir = options[0][1]
+			logger.debug("\t" * depth +"%s moving away from breach" % (self) )
 
-def get_loc_move(loc):
-	if loc.site.heap.get_best_claim():
+		
+		# If you're internal and big enough, but are off cycle, check for overflow, whether you were going to move or not
+		
+		# This needs to come after we know which way to move
+		elif best and total_str > 255 and self.site.strength:
+		
+			# I don't need to reevaluate the parents of these because this will switch spots with the biggest
+			# No two overflow preventions will go to the same source
+			logger.debug("\t" * depth +"Overflow expected at %s because of %s" % (self, debug_list(best)) )
+			biggest = max(best, key=get_claim_strength)
+			self.site.heap.dir = util.getOppositeDir(biggest.dir)
+			# return
+		
+		# If won't move and no overflow, then just stay still
+		elif will_move:
+			logger.debug("\t" * depth +"Tiles incoming, but no overflow, so just grow because I'm too small")
+			self.site.heap.dir = STILL
+			# return
+		
+		# If won't move and no overflow, then just stay still
+		elif not will_move:
+			logger.debug("\t" * depth +"Choosing to stay STILL")
+			self.site.heap.dir = STILL
+			# return
+				
+		else:
+			logger.debug("\t" * depth +"How did it get here? I guess I'm moving %s" % "HNESW"[self.dir])
+			pass
+	else:
+		logger.debug("\t" * depth +"%s is owned by %s, so I can't move it" % (loc, loc.site.owner) )
+		pass
+	
+	all_capped = all([child.is_capped() for child in children])
+	for child in children:
+		# Being in best means that you will move
+		if breach:
+			logger.debug("\t" * depth +"BREACH child %s rejected by parent %s" % (child, self) )
+			child.site.heap.filter_out_loc(loc)
+			check_new_parent(child, depth)
+		
+		# if I have more than all my incoming children, then reject them
+		elif self.site.heap.inbound_str < self.site.strength:
+			logger.debug("\t" * depth +"MOVE child %s rejected by parent %s" % ("HNESW"[child.dir], loc) )
+			child.site.heap.filter_out_loc(loc)
+			check_new_parent(child, depth)
+		
+		elif child in best:
+			# Leave it up to the child
+			logger.debug("\t" * depth +"MOVE child %s accepted by parent %s" % ("HNESW"[child.dir], loc) )
+			pass
+		
+		# not in best but are willing to move
+		elif child.will_move():
+		
+			# if you are capped, you pulled the least you needed, so free up the children rather than rejecting them
+			# maybe the want to come to this square for an uncapped claim which accepts more
+			if child.is_capped():
+				# raise Exception("I need something that stops preventing other claims from converging if the best is tiny to take an (empty?) one")
+				logger.debug("\t" * depth +"MOVE child %s released by parent %s" % ("HNESW"[child.dir], loc) )
+				child.site.heap.remove_claim(child)
+				check_new_parent(child, depth)
+			
+			# Uncapped tries to pull as much as it can, so if it was not in best but willing to move
+			# there's no room for it here, reject it
+			else:
+				logger.debug("\t" * depth +"MOVE child %s rejected by parent %s" % ("HNESW"[child.dir], loc) )
+				child.site.heap.filter_out_loc(loc)
+				check_new_parent(child, depth)
+			
+			
+		else:
+			logger.debug("\t" * depth +"MOVE child %s says it won't move, confirm when we find its loc move" % (child) )
+			pass
+			
+	
+
+def get_planned_move(loc):
+	if loc.site.heap.get_best_claim() and loc.site.owner == loc.gameMap.playerTag:
 		claim = loc.site.heap.get_best_claim()
 		return Move(claim.loc, claim.dir)
 	else:
-		logger.debug("Rejected by all directions, staying STILL")
+		return Move(loc, STILL)
+		
+def get_loc_move(loc):
+	if loc.site.heap.dir:
+		logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
+		return Move(loc, loc.site.heap.dir)
+	else:
+		logger.debug("%s ever picked a direction, staying STILL" % (loc) )
 		return Move(loc, STILL)
 
 class ClaimHeap:
 	def __init__(self, site):
 		self.heap = []
+		self.inbound_children = []
+		self.inbound_str = 0
+		self.dir = None
 		self.site = site
 		site.heap = self
 		
@@ -120,7 +238,7 @@ class ClaimHeap:
 		heapq.heappush(self.heap, (claim))
 		# Once a claim in in a heap, you can reference the heap with simply claim.heap
 		claim.set_heap(self)
-		# #logger.debug("Added the claim %s to %s" % (claim, debug_list(self.heap)))
+		#logger.debug("Added the claim %s to %s" % (claim, debug_list(self.heap)))
 		self.check_heap(old_best)
 		return True
 		
@@ -143,7 +261,7 @@ class ClaimHeap:
 		self.heap = copy
 		heapq.heapify(self.heap)
 		self.check_heap(old_best)
-		logger.debug("Removed all children from %s that would come to %s" % (self.site.loc, loc ) )
+		logger.debug("Retained only children from %s that would come to %s" % (self.site.loc, loc ) )
 	
 	def filter_out_loc(self, loc):
 		old_best = self.get_best_claim()
@@ -154,11 +272,14 @@ class ClaimHeap:
 			if loc is claim.get_parent().loc:
 				copy.remove(claim)
 				claim.set_heap(None)
-				
+		
+		if loc.gameMap.getLocation(self.site.loc, self.dir) == loc:
+			self.dir = None
 		self.heap = copy
 		heapq.heapify(self.heap)
 		self.check_heap(old_best)
-		logger.debug("Retained only children from %s that would come to %s" % (self.site.loc, loc ) )
+		logger.debug("Removed all children from %s that would come to %s" % (self.site.loc, loc ) )
+		
 	
 	def get_next_best(self):
 		self.pop_claim()
@@ -184,11 +305,12 @@ class ClaimHeap:
 		new_best = self.get_best_claim()
 		# if the best changes, then cancel the old best and issue the new best
 		if old_best is not new_best:
-			# logger.debug("old_best was %s but new_best is %s" % (old_best, new_best))
-			# raise Exception("This should probably flag a childless folk as actually needing reinspection")
+			logger.debug("old_best was %s but new_best is %s" % (old_best, new_best))
 			if old_best:
 				#logger.debug("Unspread the claim on %s from %s" % (old_best, debug_list(old_best.get_parents())))
 				# old_best.unspread()
+				old_best.get_parent().site.heap.inbound_str -= old_best.site.strength
+				old_best.get_parent().site.heap.inbound_children.remove(old_best)
 				old_best.root.remove_gen(old_best)
 				self.check_root(old_best.root)
 				old_best.get_parent().top_children.remove(old_best)
@@ -197,8 +319,9 @@ class ClaimHeap:
 				new_best.root.add_gen(new_best)
 				self.check_root(new_best.root)
 				new_best.get_parent().top_children.append(new_best)
-		
-		
+				new_best.get_parent().site.heap.inbound_children.append(new_best)
+				new_best.get_parent().site.heap.inbound_str += new_best.site.strength
+			
 	def check_root(self, root):
 		# #logger.debug("Checking retrigger of %s" % root)
 		if root.is_capped():
@@ -342,6 +465,8 @@ class Claim:
 		
 	def add_gen(self, child):
 		# logger.debug("Adding child %s to gen: %s" % (child,self.gens.get(child.gen, "BLANK")))
+		if child.site.owner == child.gameMap.playerTag:
+			self.ancestors += 1
 		self.gens.setdefault(child.gen, Gen())
 		# #logger.debug("Adding %s of gen %s to root %s (max_gen: %s - %s)" % (child,child.gen,self, self.max_gen, debug_list(self.gens[child.gen].claims)))
 		while child.gen > self.max_gen:
@@ -357,6 +482,8 @@ class Claim:
 		return True
 		
 	def remove_gen(self, child):
+		if child.site.owner == child.gameMap.playerTag:
+			self.ancestors -= 1
 		# logger.debug("Removing child %s from gen: %s" % (child,self.gens.get(child.gen, "BLANK")))
 		#logger.debug("Removing %s of gen %s from root %s (max_gen: %s - %s)" % (child,child.gen,self, self.max_gen, debug_list(self.gens[child.gen].claims)))
 		self.strength -= child.strength
@@ -381,7 +508,7 @@ class Claim:
 		return claim
 		
 	def done_expanding(self):
-		logger.debug("Stopping the expansion of %s cap %s" % (self,self.cap))
+		# logger.debug("Stopping the expansion of %s cap %s" % (self,self.cap))
 		
 		self.still_expanding = False
 		
@@ -395,7 +522,7 @@ class Claim:
 
 	def is_checker_on(self):
 		result = ((self.loc.x % 2 == self.loc.y % 2) == (self.gameMap.turnCounter % 2 != 0))
-		logger.debug("(%s == %s) == (%s != 0) ? %s" % (self.loc.x % 2, self.loc.y % 2, self.gameMap.turnCounter % 2, result))
+		# logger.debug("(%s == %s) == (%s != 0) ? %s" % (self.loc.x % 2, self.loc.y % 2, self.gameMap.turnCounter % 2, result))
 		return result
 	
 	def get_value(self):
@@ -462,7 +589,7 @@ class Claim:
 		
 	def get_best_children(self, available_children):
 		parent = self
-		logger.debug("Parent %s - children %s" % (parent,debug_list(available_children)) )
+		# logger.debug("Parent %s - children %s" % (parent,debug_list(available_children)) )
 		#logger.debug("Parent %s - top children %s" % (parent,debug_list(parent.get_top_children())) )
 
 		if not available_children:
@@ -473,12 +600,14 @@ class Claim:
 		choice_children = set()
 		no_choice_children = []
 		for child in available_children:
-			if any([child.root is c.root for c in child.site.heap if not child is c]):
+			# if any([child.root is c.root for c in child.site.heap if not child is c]):
+			if not child.site.heap.dir:
 				choice_children.add(child)
 			else:	
 				no_choice_children.append(child)					
 		#logger.debug("choice_children: %s" % debug_list(choice_children) )
 		#logger.debug("no_choice_children: %s" % debug_list(no_choice_children) )
+		# [child for child in available_children if child.site.heap.dir]
 		combos = [ClaimCombo(parent, [])]
 		prefix = []
 		best = combos[0]
@@ -488,6 +617,8 @@ class Claim:
 			combos = [best]
 		if choice_children:
 			best = self.get_best_combination(parent, choice_children, seed = combos, prefix = prefix)
+			
+		# best = self.get_best_combination(parent, available_children, seed = combos, prefix = prefix)
 		
 		logger.debug("Best combination of %s: %s" % (parent.loc, best) )
 		return best
@@ -498,19 +629,22 @@ class Claim:
 	def spread(self):
 		old_max = self.max_gen
 		if self.is_uncapped():
-			parents = self.gens[self.max_gen]
+			parents = self.gens.get(self.max_gen) or set(self.childless)
 		elif self.is_capped():
+			
 			parents = set(self.childless)
-		# raise Exception("This is checking far too many unnecessary childless folks")
+			# logger.debug("parents %s pulled from childless" % debug_list(parents))
 		
 		if balance.claim_complete_conditions(self, self.get_total_production(), 0):
 			logger.debug("%s will be complete next turn" % self)
 			self.done_expanding()
 			return
 		
+		# raise Exception("An empty capped claim isn't spreading for whatever reason")
+		# raise Exception("Also, this is working pretty well, but it isn't grabbing empty squares with zeroes appropriately.")
 		save = False
 		parent_children = {}
-		logger.debug("Expanding parents %s" % (debug_list(parents)))
+		# logger.debug("Expanding parents %s" % (debug_list(parents)))
 		for parent in parents:
 			if parent.gen != old_max:
 				# logger.debug("\tOld parent %s but root at %s" % (parent,self.max_gen))
@@ -575,12 +709,12 @@ class Claim:
 		self.active_children.append(child)
 		
 		child.site.heap.add_claim(child)
-		# if child.is_top_claim():
-			# # logger.debug("child %s is spread and top" % child)
-			# pass
-		# else:
-			# # logger.debug("child %s is spread but isn't top" % child)
-			# pass
+		if child.is_top_claim():
+			# logger.debug("child %s is spread and top" % child)
+			pass
+		else:
+			# logger.debug("child %s is spread but isn't top" % child)
+			pass
 		
 	def deactivate_child(self, child):
 		logger.debug("Deactivation of %s" %(child))
@@ -608,19 +742,18 @@ class Claim:
 		
 		while trails:
 			next_trail = trails.pop(0)
+			done.append(next_trail)
 			if len(next_trail) >= depth:
-				done.append(next_trail)
 				continue
 			children = next_trail.get_child_trails()
 			if children:
 				trails.extend(children)
-			else:
-				done.append(next_trail)
+			
 		
 		# logger.debug("Trails for %s:" % self)
 		heapq.heapify(done)
 		best = done[0]
-		# logger.debug("Best Trail out of %s: %s" % (len(done), debug_list(best)))
+		# logger.debug("Best Trail for %s out of %s: %s" % (self, len(done), best))
 		while done:
 			next = heapq.heappop(done)
 			# logger.debug("Trail: %s" % (next))
@@ -701,6 +834,7 @@ class UncappedClaim(Claim):
 			self.cost = self.root.cap or 1
 			self.value = self.benefit / self.cost
 			self.childless = set()
+			self.ancestors = 0
 			# self.move = Move(self.loc, STILL)
 		else:
 			self.gen = parent.gen + 1
@@ -708,6 +842,12 @@ class UncappedClaim(Claim):
 			self.benefit = parent.benefit
 			self.cost = 5 + self.gen
 			self.value = self.root.value * .95**self.gen
+			if self.parent.site.owner == 0:
+				self.value *= 2+self.gameMap.num_non_friends(self.loc)
+				e_str = self.gameMap.get_enemy_strength(parent.loc, range=1)
+				if e_str:
+					self.value *= 10
+			
 			self.strength = self.site.strength
 			self.production = self.site.production
 				
@@ -758,6 +898,7 @@ class CappedClaim(Claim):
 		self.strength = 0
 		self.production = 0
 		if self.root is self:
+			self.ancestors = 0
 			self.benefit = balance.evalSiteProduction(self.site, claim = self)
 			self.cost = balance.evalSiteStrength(self.site)
 			self.value = self.get_best_trail().value

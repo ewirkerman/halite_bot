@@ -67,9 +67,9 @@ def deserializeProductions(inputString):
 		_productions.append(row)
 		
 def mark_neighbors(map, loc, type):
-	shuffle(rng_CARDINALS)
-	myCards = copy.copy(rng_CARDINALS)
-	for dir in myCards:
+	# shuffle(rng_CARDINALS)
+	# myCards = copy.copy(rng_CARDINALS)
+	for dir in CARDINALS:
 		new_loc = map.getLocation(loc, dir)
 		new_site = new_loc.site
 		getattr(new_site, type).append(Move(loc, dir))
@@ -84,6 +84,9 @@ def mark_neighbors(map, loc, type):
 
 def increment_neighbors(map, loc, owner):
 	curr_site = map.getSite(loc)
+	if owner != 0:
+		# logger.debug("Found location %s with owner %s (should be %s and %s)" % (loc.site.loc, loc.site.owner, loc, owner))
+		pass
 	if owner > 0:
 		t = map.getTerritory(owner)
 		t.addLocation(curr_site)
@@ -92,9 +95,12 @@ def increment_neighbors(map, loc, owner):
 		type = "friends"
 	elif owner == 0: 
 		type = "neutrals"
+		if curr_site.strength == 0:
+			type = "empties"
+			mark_neighbors(map, loc, type)
 	else:
 		type = "enemies"
-	#map_logger.debug("Increment_neighbors neighbors of %s with type %s" % (loc, type))
+	# map_logger.debug("Increment_neighbors neighbors of %s with type %s" % (loc, type))
 	mark_neighbors(map, loc, type)
 
 def deserializeMap(m, inputString):
@@ -116,13 +122,25 @@ def deserializeMap(m, inputString):
 		
 		for a in range(0, counter):
 			#map_logger.debug("%s,%s" % (y,x))
+			if owner != 0:
+				# logger.debug("Found location %s, %s with owner %s" % (x, y, owner))
+				pass
 			m.contents[y][x].owner = owner
+			if owner != 0:
+				# logger.debug("Set site for %s, %s to owner %s" % (x, y, m.contents[y][x].owner))
+				pass
 			#map_logger.debug("Retrieving Loc")
 			loc = m.getLocationXY(x,y)
+			if owner != 0:
+				# logger.debug("Retrieved location %s with owner %s (should be %s and %s)\n" % (loc.site.loc, loc.site.owner, loc, owner))
+				pass
 			loc.gameMap = m
 			if owner > 0:
 				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
+			if owner != 0:
+				# logger.debug("Found location %s with owner %s (should be %s and %s)\n" % (loc.site.loc, loc.site.owner, loc, owner))
+				pass
 			x += 1
 			if x == m.width:
 				x = 0

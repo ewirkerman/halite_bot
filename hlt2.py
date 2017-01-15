@@ -21,6 +21,7 @@ import hashlib
 STOP_ATTACK = 1
 
 location_cache = {}
+neighbor_range_cache = {}
 
 class Location:
 	def __init__(self, x=0, y=0):
@@ -44,13 +45,14 @@ class Location:
 		#return int(ikey)
 	
 class Site:
-	def __init__(self, owner=0, strength=0, production=0, friends = [], neutrals = 4, enemies = [], loc = None):
+	def __init__(self, owner=0, strength=0, production=0, friends = [], neutrals = [], enemies = [], loc = None):
 		self.owner = owner
 		self.strength = strength
 		self.production = production
 		self.friends = []
 		self.neutrals = []
 		self.enemies = []
+		self.empties = []
 		self.loc = loc
 		loc.site = self
 		self.enemy_str = 0
@@ -157,6 +159,10 @@ class GameMap:
 	def inBounds(self, l):
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
 		
+	def num_non_friends(self, loc):
+		# logger.debug("Found %s non_friends" % (len(loc.site.empties) + len(loc.site.enemies)) )
+		return len(loc.site.empties) + len(loc.site.enemies)
+	
 	def updateCounts(self, owner, loc):
 		y = loc.y
 		x = loc.x
@@ -221,14 +227,27 @@ class GameMap:
 		return self.getLocationXY(loc.x, loc.y, direction)
 		
 	def neighbors(self, loc, n=1, include_self=False):
-	#"Iterable over the n-distance neighbors of a given loc.  For single-step neighbors, the enumeration index provides the direction associated with the neighbor."
-		assert isinstance(include_self, bool)
-		assert isinstance(n, int) and n > 0
-		if n == 1:
-			combos = ((0, -1), (1, 0), (0, 1), (-1, 0), (0, 0))   # NORTH, EAST, SOUTH, WEST, STILL ... matches indices provided by enumerate(game_map.neighbors(square))
-		else:
-			combos = ((dx, dy) for dy in range(-n, n+1) for dx in range(-n, n+1) if abs(dx) + abs(dy) <= n)
-		return (self.contents[(loc.y + dy) % self.height][(loc.x + dx) % self.width] for dx, dy in combos if include_self or dx or dy)
+		#"Iterable over the n-distance neighbors of a given loc.  For single-step neighbors, the enumeration index provides the direction associated with the neighbor."
+		if loc not in neighbor_range_cache:
+			neighbor_range_cache[loc] = {}
+		if n not in neighbor_range_cache[loc]:
+			logger.debug("Neighbor cache miss")
+			if n == 0:
+				if include_self:
+					neighbor_range_cache[loc][n] = [loc]
+				else:
+					neighbor_range_cache[loc][n] = []
+			else:
+				assert isinstance(include_self, bool)
+				assert isinstance(n, int) and n > 0
+				
+				if n == 1:
+					# combos = ((0, -1), (1, 0), (0, 1), (-1, 0), (0, 0))   # NORTH, EAST, SOUTH, WEST, STILL ... matches indices provided by enumerate(game_map.neighbors(square))
+					neighbor_range_cache[loc][n] = include_self and [self.getLocation(loc, dir) for dir in DIRECTIONS] or [self.getLocation(loc, dir) for dir in CARDINALS]
+				else:
+					combos = ((dx, dy) for dy in range(-n, n+1) for dx in range(-n, n+1) if abs(dx) + abs(dy) <= n)
+					neighbor_range_cache[loc][n] = [self.getLocationXY(loc.x+dx, loc.y+dy) for dx, dy in combos if include_self or dx or dy]
+		return [loc.site for loc in neighbor_range_cache[loc][n]]
 
 		
 	def updateLocationDirection(self, x,y,loc_key,direction):
@@ -258,20 +277,21 @@ class GameMap:
 			location_cache[loc_key][STILL] = Location(x,y)
 	
 	def getLocationXY(self, x, y, direction = STILL):
-		loc_key = x*self.width + y
-		if not location_cache.get(loc_key):
+		loc_key = y*self.width + x
+		if loc_key not in location_cache:
 			location_cache[loc_key] = {}
 		if direction not in location_cache[loc_key]:
 			self.updateLocationDirection(x,y,loc_key,direction)
-			
+		
 		return location_cache[loc_key][direction]
 		
 		
 	def getSite(self, l, direction = STILL):
 		#logger.debug("getSite")
+		if not direction:
+			return l.site
 		l = self.getLocation(l, direction)
-		#logger.debug("getSite found location %s" % l)
-		return self.contents[l.y][l.x]
+		return l.site
 	
 	def getTerritory(self, owner = None):
 		if owner is None:
@@ -315,7 +335,26 @@ class GameMap:
 				heapq.heappush(pair)
 		
 		return heap[0]
-		
+	
+	def get_enemy_strength(self, loc, range=None, damage_dealable=False, breach=False):
+	
+		enemy_str = 0
+		max_damage = 256
+		if damage_dealable:
+			range = range or 1
+			max_damage = loc.site.strength
+		if not range:
+			if damage_dealable:
+				range = 1
+			else:
+				range = 2
+		neighbors = self.neighbors(loc, n=range-1, include_self=True)
+		for site in neighbors:
+			if site.owner or not site.strength or breach:
+				enemy_str += sum([min([move.loc.site.strength, max_damage]) for move in site.enemies])
+		# logger.debug("Got enemy strength for %s and found %s sites within %s range with %s strength" % (loc, len(neighbors), range, enemy_str))
+		return enemy_str	
+	
 	def getTerritories(self):
 		return self.territories.values()
 		

@@ -8,8 +8,6 @@ from moves import *
 import logging
 import time
 from math import pi
-from need import *
-from attack import Attack
 import cProfile
 import pstats
 import os
@@ -55,19 +53,22 @@ def claims_to_map(title, turnCounter, claims):
 		logger.debug("%s %s: %s" % (title, turnCounter, getMoveMap(move_dict = m_d)) )
 		pass
 
-def layered_iteration(seed, func):
-	curr_wave = seed
+def layered_iteration(seed, func, sort_func=None):
+	curr_wave = list(seed)
 	done = set(seed)
 	results = []
 	while curr_wave:
-		next_wave = set()
+		if sort_func:
+			# logger.debug("I'm sorting %s" % debug_list(curr_wave))
+			curr_wave.sort(key=sort_func)
+		next_wave = []
 		for loc in curr_wave:
-			# logger.debug("Iterating over %s" % loc)
+			# logger.debug("Iterating over %s with owner %s" % (loc, loc.site.owner) )
 			for move in loc.site.friends:
 				child_loc = move.loc
 				if child_loc not in done:
 					done.add(child_loc)
-					next_wave.add(child_loc)
+					next_wave.append(child_loc)
 					# logger.debug("Iteration child %s" % child_loc)
 			if func:
 				results.append(func(loc))
@@ -100,7 +101,7 @@ def main():
 	all_uncapped_claims = []
 	all_capped_claims = []
 	for loc in t.fringe:
-		if loc.site.strength or not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
+		if not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
 			c_claim = CappedClaim(gameMap, loc)
 			all_capped_claims.append(c_claim)
 	
@@ -158,14 +159,20 @@ def main():
 				
 			working_list = [c for c in l if c.still_expanding]
 		logger.debug("\n\n")
-	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.frontier, get_loc_move))))
+	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.frontier, get_planned_move))))
+	
+	
+	
+	logger.debug("I really think I want to start undoing claims if they can't finish and there is a different capped claim underneath them")
+	
+	
 	
 	######## Claim Move Filtering
 		
 	logger.debug("")
 	logger.debug("Getting capped root claims as moves of %s's territory" % t.owner)
 	
-	layered_iteration(t.fringe, find_loc_move)
+	layered_iteration(t.fringe, find_loc_move, sort_func = gameMap.num_non_friends)
 	moves = layered_iteration(t.frontier, get_loc_move)
 	
 	
@@ -174,7 +181,7 @@ def main():
 	
 	
 
-	# if test_frame or turnCounter == 80:
+	# if test_frame or turnCounter == 70:
 		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()

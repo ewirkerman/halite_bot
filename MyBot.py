@@ -59,8 +59,8 @@ def layered_iteration(seed, func, sort_func=None):
 	results = []
 	while curr_wave:
 		if sort_func:
-			# logger.debug("I'm sorting %s" % debug_list(curr_wave))
 			curr_wave.sort(key=sort_func)
+		logger.debug("\nIterating over gen: %s\n" % debug_list(curr_wave))
 		next_wave = []
 		for loc in curr_wave:
 			# logger.debug("Iterating over %s with owner %s" % (loc, loc.site.owner) )
@@ -181,7 +181,7 @@ def main():
 	
 	
 
-	# if test_frame or turnCounter == 70:
+	# if test_frame or turnCounter == 150:
 		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()

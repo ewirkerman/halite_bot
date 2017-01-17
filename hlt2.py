@@ -38,7 +38,8 @@ class Location:
 		return self.x == loc.x and self.y == loc.y
 		
 	def __hash__(self):
-		return hash(','.join(["%i"% self.x,"%i"% self.y]))
+		# return hash(','.join(["%i"% self.x,"%i"% self.y]))
+		return self.y * self.gameMap.width + self.x
 		#ikey = ""
 		#for c in key:
 		#	ikey += str(ord(c))

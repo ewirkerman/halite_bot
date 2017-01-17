@@ -27,24 +27,38 @@ def evaluate_claim_combo(claim_combo):
 	# This should include a provision that minimizes the amount of production lost, minimizes the amount of overkill
 	# # logging.getLogger("bot").debug("Checking value parent %s of claim_combo : %s" % (claim_combo.parent, debug_list(claim_combo.claims)) )
 	
-	loss_avoidance = 10
+	loss_avoidance = 1000
 	strength = 0
 	loss = 0
 	p_loss = 0
-	if claim_combo.parent.site.owner == 0:
-		strength -= claim_combo.parent.site.strength
-		#logging.getLogger("bot").debug("root strength=%s"% strength)
-	else:
-		if not claim_combo.parent.will_move():
-			strength += claim_combo.parent.site.strength + claim_combo.parent.site.production
-			#logging.getLogger("bot").debug("stationary strength=%s"% strength)
-			pass
 	for claim in claim_combo:
 		strength += claim.site.strength
 		if claim.site.strength + claim.site.production > 255:
 			p_loss -= claim.site.strength + claim.site.production - 255
 		p_loss += claim.site.production
-	# logging.getLogger("bot").debug("total strength=%s"% strength)
+		
+	if claim_combo.parent.site.owner == 0:
+		strength -= claim_combo.parent.site.strength
+		#logging.getLogger("bot").debug("root strength=%s"% strength)
+	else:
+	
+		# If the parent isn't moving, add its strength
+		parent_still_str = claim_combo.parent.site.strength + claim_combo.parent.site.production
+		if claim_combo.parent.site.heap.dir:
+			logging.getLogger("bot").debug("Combo parent %s is moving out of the way" % claim_combo.parent)
+			pass
+		elif strength + parent_still_str < 255:
+			logging.getLogger("bot").debug("No overflow projected - %s staying still" % claim_combo.parent)
+			strength += parent_still_str
+			pass
+		elif parent_still_str < strength:
+			logging.getLogger("bot").debug("Overflow projected - I'm switching because I'll be smaller, so don't count me here")
+			pass
+		else:
+			logging.getLogger("bot").debug("Overflow, but %s bigger than the incoming, so staying STILL" % claim_combo.parent)
+			strength += parent_still_str
+			pass
+	# logging.getLogger("bot").debug("total strength=%s"% strength)	
 	
 	if strength > 255:
 		loss = strength - 255
@@ -64,13 +78,22 @@ def evaluate_claim_combo(claim_combo):
 	# We are away from the enemy so the less strength we take it with, the better
 	if claim_combo.parent.is_capped() and claim_combo.parent.is_root() and not e_str and all_capped:
 		
-		# if you don't have enough strenght to take a strong neutral, this isn't a good combo
-		if strength < 1 and claim_combo.parent.site.strength > 1:
+		# if you don't have enough strength to take a strong neutral, this isn't a good combo
+		# reminder that we subtracted the neutral's strength from "strength" to start
+		if claim_combo.parent.site.strength > 1 and strength < 1:
+			logging.getLogger("bot").debug("Not enough strength to take the neutral with combo: %s" % debug_list(claim_combo.claims))
 			strength += 1024
+		
+		#any claim combo that doesn't have at least one moving to a 0 square is bad
+		elif claim_combo.parent.site.strength < 1 and len(claim_combo) != 1:
+			logging.getLogger("bot").debug("Wrong number for taking an empty: %s" % debug_list(claim_combo.claims))
+			strength += 1024
+			
+		else:
+			logging.getLogger("bot").debug("Able to capture a neutral with: %s" % debug_list(claim_combo.claims))
+			pass
+			
 		value = (strength + loss_avoidance*loss)
-		## This bit just says don't move more than one 0 to get a zero, but now that I factor production lost in, this should be naturally prevented
-		# elif strength < 1 and claim_combo.parent.site.strength < 1 and len(claim_combo) != 1:
-			# strength += 1024
 		
 		# as few capped claims as possible and as much uncapped as possible
 		
@@ -118,6 +141,7 @@ def claim_move_conditions_parentless(claim):
 
 	elif claim.root.is_capped():
 		ret = claim.gen == claim.root.max_gen and claim_complete_conditions(claim.root)
+		logging.getLogger("bot").debug("claim %s vs root_max %s" % (claim.gen, claim.root.max_gen)  )
 		
 		
 	else: # UNCAPPED
@@ -135,19 +159,20 @@ def claim_move_conditions_parentless(claim):
 	
 def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 	if claim.ancestors < 1:
-		# logging.getLogger("bot").debug("%s has no ancestors" % claim)
+		logging.getLogger("bot").debug("%s has no ancestors" % claim)
 		return False
 		
 	if not claim.is_capped():
-		# logging.getLogger("bot").debug("%s is not capped" % claim)
+		logging.getLogger("bot").debug("%s is not capped" % claim)
 		return False
 		
+	logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )
 	if claim.strength + this_gen_str > claim.cap:
-		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )
+		logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )
 		return True
 		
 	if claim.strength < 1 and claim.cap < 1:
-		# logging.getLogger("bot").debug("%s has 0 and needs 0" % (claim) )
+		logging.getLogger("bot").debug("%s has 0 and needs 0" % (claim) )
 		return True
-	# logging.getLogger("bot").debug("%s will spread further" % (claim) )
+	logging.getLogger("bot").debug("%s incomplete" % (claim) )
 	return False

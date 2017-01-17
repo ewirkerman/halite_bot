@@ -39,6 +39,7 @@ def check_new_parent(child, depth):
 		find_loc_move( child.site.loc, depth+1)
 		logger.debug("\t" * (depth-1) +"Done recursing to new child")
 	except (AttributeError, IndexError):
+		logger.debug("\t" * (depth-1) +"Wasn't able to get a new parent for %s" % child)
 		pass
 		
 def breach_escape_eval(t):
@@ -52,13 +53,94 @@ def breach_escape_eval(t):
 		projected += 1024
 	return projected
 		
-	
+def validate_direction(claim, parent):
+	# Figure out our own, then our children
+	loc = claim.loc
+	if loc.site.owner == loc.gameMap.playerTag:
+		total_str = claim.site.heap.inbound_str + claim.site.strength
+		# claim.loc.site.heap.dir = None
+		will_move = claim.will_move()
+		
+		parent_e_str = parent.parent_e_str
+		is_checker = claim.is_checker_on()
+		# Last gen of a collapsing capped claim
+		if will_move and claim.is_capped():
+			if claim.root.site.strength and not claim.site.strength:
+				logger.debug("%s shouldn't move even for a capped claim because I'll add nothing" % claim)
+				claim.site.heap.dir = STILL
+				return False
+			else:
+				logger.debug("Willing to move %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site.strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
+				# loc.site.heap.filter_to_loc(parent.loc)
+				claim.site.heap.dir = claim.dir
+				return True
+		
+		# If moving deals more enemy damage than staying still, move
+		#elif will_move and not is_checker and claim.site.strength * len(parent.site.enemies) > claim.site.production:
+		elif will_move and claim.site.strength * len(parent.site.enemies) > claim.site.production:
+			logger.debug("%s attacking off checker because that'll deal more damage than staying" % claim)
+			# loc.site.heap.filter_to_loc(parent.loc)
+			claim.site.heap.dir = claim.dir
+			return True
+			
+		# If you can safely expand, do so
+		elif will_move and parent_e_str == 0 and parent.site.owner == 0:
+			logger.debug("%s expanding off checker because it's safe to do so" % claim)
+			# loc.site.heap.filter_to_loc(parent.loc)
+			claim.site.heap.dir = claim.dir
+			return True
+		
+		# Since you're internal and big enough, move to checker
+		elif will_move and not is_checker and claim.site.strength > claim.site.production * 7:
+			# loc.site.heap.filter_to_loc(parent.loc)
+			claim.site.heap.dir = claim.dir
+			logger.debug("Willing to move %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site.strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
+			return True
+			
+		# elif breach and claim.site.strength:
+			# options = [(claim.gameMap.getSite(claim.loc, dir), dir) for dir in CARDINALS]
+			# options.sort(key=breach_escape_eval)
+			# claim.site.heap.dir = options[0][1]
+			# logger.debug("%s moving away from breach" % (claim) )
+			# return False
+		
+		# If you're internal and big enough, but are off cycle, check for overflow, whether you were going to move or not
+		
+		# # This needs to come after we know which way to move
+		# elif best and total_str > 255 and claim.site.strength:
+		
+			# # I don't need to reevaluate the parents of these because this will switch spots with the biggest
+			# # No two overflow preventions will go to the same source
+			# logger.debug("Overflow expected at %s because of %s" % (claim, debug_list(best)) )
+			# biggest = max(best, key=get_claim_strength)
+			# claim.site.heap.dir = util.getOppositeDir(biggest.dir)
+			# return False
+		
+		# If won't move and no overflow, then just stay still
+		elif will_move:
+			logger.debug("just grow because %s is too small" % claim)
+			if not claim.site.heap.dir:
+				claim.site.heap.dir = STILL
+			return False
+		
+		# If won't move and no overflow, then just stay still
+		elif not will_move:
+			logger.debug("%s choosing to stay STILL" % claim)
+			claim.site.heap.dir = STILL
+			return True
+				
+		else:
+			logger.debug("How did it get here? I guess I'm moving %s" % "HNESW"[claim.dir])
+			pass
+			
+	else:
+		logger.debug("%s is owned by %s, so I can't move it" % (loc, loc.site.owner) )
+		return False
+		pass
+		
+	raise Exception("Unhandled movement case for %s" % claim)
 		
 def find_loc_move(loc, depth=0):
-	children = get_inbound_children(loc)
-	logger.debug("\t" * depth + "Filtering (depth = %s) children of %s (owned by %s): %s" % (depth, loc, loc.site.owner, debug_list(children)) )	
-	moveable_children = [child for child in children if child.will_move()]
-	logger.debug("\t" * depth + "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
 	
 	self = loc.site.heap.get_best_claim()
 	
@@ -70,141 +152,65 @@ def find_loc_move(loc, depth=0):
 		
 	parent = self.get_parent()
 	
-	raise Exception("Geet real child consent here, so we can actually reject the others")
 		
 	# the strength of enemies that could attack the parent loc
-	parent_e_str = self.gameMap.get_enemy_strength(parent.loc)
-	breach_str = 0
-	if parent_e_str:
-		breach_str = self.gameMap.get_enemy_strength(parent.loc, range = 1)
-	logger.debug("\t" * depth + "Is %s breach_str greater than %s neutral parent strength?" %(breach_str, parent.site.strength))
+	self.parent_e_str = self.gameMap.get_enemy_strength(parent.loc)
+	self.breach_str = 0
+	
+	if self.parent_e_str:
+		self.breach_str = self.gameMap.get_enemy_strength(parent.loc, range = 1)
+	
+	children = get_inbound_children(loc)
+	logger.debug( "\nFiltering (depth = %s) children of %sf%s (owned by %s): %s" % (depth, loc.gameMap.turnCounter,loc, loc.site.owner, debug_list(children)) )	
+	logger.debug( "Is %s breach_str greater than %s neutral parent strength?" %(self.breach_str, parent.site.strength))
+	# raise Exception("Get real child consent here, so we can actually reject the others")
+	moveable_children = [child for child in children if validate_direction(child, self)]
+	logger.debug( "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
 	best = self.get_best_children(moveable_children)
-	breach = not self.is_root() and parent.is_root() and parent.site.strength and parent.site.strength < breach_str
+	breach = not self.is_root() and parent.is_root() and parent.site.strength and parent.site.strength < self.breach_str
 	if breach:
 		logger.debug("BREACH!!" )
 		pass
 	
-	# Figure out our own, then our children
-	if loc.site.owner == loc.gameMap.playerTag:
-		total_str = self.site.heap.inbound_str + self.site.strength
-		self.loc.site.heap.dir = None
-		will_move = self.will_move()
-		is_checker = self.is_checker_on()
-		# Last gen of a collapsing capped claim
-		if will_move and self.is_capped():
-			if self.root.site.strength and not self.site.strength:
-				logger.debug("\t" * depth +"%s shouldn't move even for a capped claim because I'll add nothing" % self)
-				self.site.heap.dir = STILL
-				# return
-			else:
-				logger.debug("\t" * depth +"Willing to move %s%s %s to %s (e:%s)" % (self.is_capped() and "C" or "U",self.site.strength,"HNESW"[self.dir], parent.loc, parent_e_str) )
-				# loc.site.heap.filter_to_loc(parent.loc)
-				self.site.heap.dir = self.dir
-				# return
-		
-		# If moving deals more enemy damage than staying still, move
-		#elif will_move and not is_checker and self.site.strength * len(parent.site.enemies) > self.site.production:
-		elif will_move and self.site.strength * len(parent.site.enemies) > self.site.production:
-			logger.debug("\t" * depth +"%s attacking off checker because that'll deal more damage than staying" % self)
-			# loc.site.heap.filter_to_loc(parent.loc)
-			self.site.heap.dir = self.dir
-			# return
-			
-		# If you can safely expand, do so
-		elif will_move and parent_e_str == 0 and parent.site.owner == 0:
-			logger.debug("\t" * depth +"%s expanding off checker because it's safe to do so" % self)
-			# loc.site.heap.filter_to_loc(parent.loc)
-			self.site.heap.dir = self.dir
-			# return
-		
-		# Since you're internal and big enough, move to checker
-		elif will_move and not is_checker and self.site.strength > self.site.production * 7:
-			# loc.site.heap.filter_to_loc(parent.loc)
-			self.site.heap.dir = self.dir
-			logger.debug("\t" * depth +"Willing to move %s%s %s to %s (e:%s)" % (self.is_capped() and "C" or "U",self.site.strength,"HNESW"[self.dir], parent.loc, parent_e_str) )
-			# return
-			
-		elif breach and self.site.strength:
-			options = [(self.gameMap.getSite(self.loc, dir), dir) for dir in CARDINALS]
-			options.sort(key=breach_escape_eval)
-			self.site.heap.dir = options[0][1]
-			logger.debug("\t" * depth +"%s moving away from breach" % (self) )
-
-		
-		# If you're internal and big enough, but are off cycle, check for overflow, whether you were going to move or not
-		
-		# This needs to come after we know which way to move
-		elif best and total_str > 255 and self.site.strength:
-		
-			# I don't need to reevaluate the parents of these because this will switch spots with the biggest
-			# No two overflow preventions will go to the same source
-			logger.debug("\t" * depth +"Overflow expected at %s because of %s" % (self, debug_list(best)) )
-			biggest = max(best, key=get_claim_strength)
-			self.site.heap.dir = util.getOppositeDir(biggest.dir)
-			# return
-		
-		# If won't move and no overflow, then just stay still
-		elif will_move:
-			logger.debug("\t" * depth +"Tiles incoming, but no overflow, so just grow because I'm too small")
-			self.site.heap.dir = STILL
-			# return
-		
-		# If won't move and no overflow, then just stay still
-		elif not will_move:
-			logger.debug("\t" * depth +"Choosing to stay STILL")
-			self.site.heap.dir = STILL
-			# return
-				
-		else:
-			logger.debug("\t" * depth +"How did it get here? I guess I'm moving %s" % "HNESW"[self.dir])
-			pass
-	else:
-		logger.debug("\t" * depth +"%s is owned by %s, so I can't move it" % (loc, loc.site.owner) )
-		pass
+	
+	
+	
 	
 	all_capped = all([child.is_capped() for child in children])
-	for child in children:
+	logger.debug("All children are: %s" % debug_list([(child.loc.__str__(), "HNESW"[child.dir]) for child in children]))
+	for child in list(children):
 		# Being in best means that you will move
 		if breach:
-			logger.debug("\t" * depth +"BREACH child %s rejected by parent %s" % (child, self) )
+			logger.debug("BREACH child %s rejected by parent %s" % (child, self) )
 			child.site.heap.filter_out_loc(loc)
-			check_new_parent(child, depth)
-		
-		# if I have more than all my incoming children, then reject them
-		elif self.site.heap.inbound_str < self.site.strength:
-			logger.debug("\t" * depth +"MOVE child %s rejected by parent %s" % ("HNESW"[child.dir], loc) )
-			child.site.heap.filter_out_loc(loc)
+			child.site.heap.dir = None
 			check_new_parent(child, depth)
 		
 		elif child in best:
-			# Leave it up to the child
-			logger.debug("\t" * depth +"MOVE child %s accepted by parent %s" % ("HNESW"[child.dir], loc) )
+			logger.debug("MOVE child %s (%s) accepted by parent %s" % ("HNESW"[child.dir], child, loc) )
+			# child.site.dir = child.dir
+			# child.site.heap.filter_to_loc(loc)
 			pass
 		
 		# not in best but are willing to move
-		elif child.will_move():
-		
-			# if you are capped, you pulled the least you needed, so free up the children rather than rejecting them
-			# maybe the want to come to this square for an uncapped claim which accepts more
-			if child.is_capped():
-				# raise Exception("I need something that stops preventing other claims from converging if the best is tiny to take an (empty?) one")
-				logger.debug("\t" * depth +"MOVE child %s released by parent %s" % ("HNESW"[child.dir], loc) )
-				child.site.heap.remove_claim(child)
-				check_new_parent(child, depth)
-			
-			# Uncapped tries to pull as much as it can, so if it was not in best but willing to move
-			# there's no room for it here, reject it
-			else:
-				logger.debug("\t" * depth +"MOVE child %s rejected by parent %s" % ("HNESW"[child.dir], loc) )
-				child.site.heap.filter_out_loc(loc)
-				check_new_parent(child, depth)
-			
-			
-		else:
-			logger.debug("\t" * depth +"MOVE child %s says it won't move, confirm when we find its loc move" % (child) )
+		elif child.site.heap.dir == STILL:
+			logger.debug("STILL child %s (%s) accepted by parent %s" % ("HNESW"[child.dir], child, loc) )
 			pass
-			
+		else:
+			logger.debug("MOVE child %s (%s) rejected by parent %s" % ("HNESW"[child.dir], child, loc) )
+			child.site.heap.filter_out_loc(loc)
+			child.site.heap.dir = None
+			check_new_parent(child, depth)
+			pass
 	
+	inb_str = sum([claim.site.strength for claim in best if claim.site.heap.dir])
+	total_str = inb_str + self.site.strength
+	logger.debug("%s vs %s for %s overflow" % (inb_str, self.site.strength, self.loc) )
+	if ( not self.site.heap.dir == self.get_parent_direction() ) and self.site.strength < inb_str and total_str > 255:
+		logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
+		biggest = max(best, key=get_claim_strength)
+		self.site.heap.filter_to_loc(None)
+		self.site.heap.dir = util.getOppositeDir(biggest.dir)
 
 def get_planned_move(loc):
 	if loc.site.heap.get_best_claim() and loc.site.owner == loc.gameMap.playerTag:
@@ -218,7 +224,7 @@ def get_loc_move(loc):
 		logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
 		return Move(loc, loc.site.heap.dir)
 	else:
-		logger.debug("%s ever picked a direction, staying STILL" % (loc) )
+		logger.debug("%s never picked a direction, staying STILL" % (loc) )
 		return Move(loc, STILL)
 
 class ClaimHeap:
@@ -309,8 +315,9 @@ class ClaimHeap:
 			if old_best:
 				#logger.debug("Unspread the claim on %s from %s" % (old_best, debug_list(old_best.get_parents())))
 				# old_best.unspread()
-				old_best.get_parent().site.heap.inbound_str -= old_best.site.strength
-				old_best.get_parent().site.heap.inbound_children.remove(old_best)
+				if old_best.gen:
+					old_best.get_parent().site.heap.inbound_str -= old_best.site.strength
+					old_best.get_parent().site.heap.inbound_children.remove(old_best)
 				old_best.root.remove_gen(old_best)
 				self.check_root(old_best.root)
 				old_best.get_parent().top_children.remove(old_best)
@@ -319,8 +326,9 @@ class ClaimHeap:
 				new_best.root.add_gen(new_best)
 				self.check_root(new_best.root)
 				new_best.get_parent().top_children.append(new_best)
-				new_best.get_parent().site.heap.inbound_children.append(new_best)
-				new_best.get_parent().site.heap.inbound_str += new_best.site.strength
+				if new_best.gen:
+					new_best.get_parent().site.heap.inbound_children.append(new_best)
+					new_best.get_parent().site.heap.inbound_str += new_best.site.strength
 			
 	def check_root(self, root):
 		# #logger.debug("Checking retrigger of %s" % root)

@@ -112,7 +112,7 @@ class Territory:
 			location = site.loc
 		self.territory.add(location)
 		self.production += site.production
-		# logger.debug("Adding %s production from %s to %s's territory" % (site.production, location, self.owner) )
+#		# logger.debug("Adding %s production from %s to %s's territory" % (site.production, location, self.owner) )
 		self.strength += site.strength
 
 	def getLocations(self):
@@ -157,7 +157,7 @@ class GameMap:
 		for y in range(0, self.height):
 			row = []
 			for x in range(0, self.width):
-				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
+#				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
 				row.append(Site(0, 0, 0, loc = self.getLocationXY(x,y)))
 			self.contents.append(row)
 		logger.info("Recreated all the sites")
@@ -166,7 +166,7 @@ class GameMap:
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
 		
 	def num_non_friends(self, loc):
-		# logger.debug("Found %s non_friends" % (len(loc.site.empties) + len(loc.site.enemies)) )
+#		# logger.debug("Found %s non_friends" % (len(loc.site.empties) + len(loc.site.enemies)) )
 		return len(loc.site.empties) + len(loc.site.enemies)
 	
 	def updateCounts(self, owner, loc):
@@ -237,7 +237,7 @@ class GameMap:
 		if loc not in neighbor_range_cache:
 			neighbor_range_cache[loc] = {}
 		if n not in neighbor_range_cache[loc]:
-			# logger.debug("Neighbor cache miss")
+#			# logger.debug("Neighbor cache miss")
 			if n == 0:
 				if include_self:
 					neighbor_range_cache[loc][n] = [loc]
@@ -293,7 +293,7 @@ class GameMap:
 		
 		
 	def getSite(self, l, direction = STILL):
-		#logger.debug("getSite")
+#		#logger.debug("getSite")
 		if not direction:
 			return l.site
 		l = self.getLocation(l, direction)
@@ -303,9 +303,9 @@ class GameMap:
 		if owner is None:
 			owner = self.playerTag
 		if not self.territories.get(owner):
-			# logger.debug("Creating territory for owner %s")
+#			# logger.debug("Creating territory for owner %s")
 			self.territories[owner] = Territory(owner, self)
-		# logger.debug("Found %s territory for owner %s" % (len(self.territories[owner].territory), owner))
+#		# logger.debug("Found %s territory for owner %s" % (len(self.territories[owner].territory), owner))
 		return self.territories[owner]
 	
 	def getEnemyTerritories(self, owner = None):
@@ -337,7 +337,7 @@ class GameMap:
 		for loc in set:
 			for other_loc in other_set:
 				pair = DistPair(loc, other_loc)
-				logger.debug("Pushing %s" % pair)
+#				logger.debug("Pushing %s" % pair)
 				heapq.heappush(pair)
 		
 		return heap[0]
@@ -358,7 +358,7 @@ class GameMap:
 		for site in neighbors:
 			if site.owner or not site.strength or breach:
 				enemy_str += sum([min([move.loc.site.strength, max_damage]) for move in site.enemies])
-		# logger.debug("Got enemy strength for %s and found %s sites within %s range with %s strength" % (loc, len(neighbors), range, enemy_str))
+#		# logger.debug("Got enemy strength for %s and found %s sites within %s range with %s strength" % (loc, len(neighbors), range, enemy_str))
 		return enemy_str	
 	
 	def getTerritories(self):
@@ -370,7 +370,7 @@ class GameMap:
 	#	while len(this_wave) > 0:
 	#		next_wave = []
 	#		for loc in this_wave:
-	#			logger.debug("Spreading location to check: %s" % loc)
+#	#			logger.debug("Spreading location to check: %s" % loc)
 	#			spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
 	#			for spread_loc in spread_locs:
 	#				next_wave.append(spread_loc)
@@ -378,8 +378,8 @@ class GameMap:
 	#				self.local_maxima.append(loc)
 	#		already_waved.extend(this_wave)
 	#		this_wave = next_wave
-	#		logger.debug("Local Maxima: %s" % debug_list(this_wave))
-	#	logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
+#	#		logger.debug("Local Maxima: %s" % debug_list(this_wave))
+#	#	logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
 		used_tiles = set()
 		for tile in [self.getLocationXY(x,y) for x in range(self.width) for y in range(self.height)]:
 			if tile not in used_tiles:
@@ -390,32 +390,32 @@ class GameMap:
 				while spread_set:
 					next_set = list(spread_set)
 					spread_set = set()
-					# logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
+#					# logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
 					for loc in next_set:
 						for neighbor in [self.getLocation(loc, d) for d in CARDINALS]:
 
 							if neighbor.site.production > loc.site.production:
 								if not spoiled:
-									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
+#									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
 									spoiled = True
 							elif neighbor in used_tiles or neighbor in this_set:
 								continue
 							elif neighbor.site.production == loc.site.production:
-								# logger.debug("Spreading to: %s" % neighbor)
+#								# logger.debug("Spreading to: %s" % neighbor)
 								spread_set.add(neighbor)
 					this_set.update(spread_set)
 						
 				if not spoiled:
-					# logger.debug("Found a local maxima set: %s" % debug_list(this_set))
+#					# logger.debug("Found a local maxima set: %s" % debug_list(this_set))
 					self.local_maxima.append(this_set)
 				else:
-					# logger.debug("Spoiled set completed: %s" % debug_list(this_set))
+#					# logger.debug("Spoiled set completed: %s" % debug_list(this_set))
 					pass
 				used_tiles.update(this_set)
 		
-		logger.debug("Maxima sets:")
+#		logger.debug("Maxima sets:")
 		for maxima in self.local_maxima:
-			logger.debug("%s" % debug_list(maxima))
+#			logger.debug("%s" % debug_list(maxima))
 			pass
 		return self.local_maxima
 		
@@ -437,20 +437,20 @@ class GameMap:
 	def defineTerritories(self):
 		for t in self.getTerritories():
 			for loc in t.territory:
-				#logger.debug("Territory Loc: %s" % loc)
+#				#logger.debug("Territory Loc: %s" % loc)
 				site = loc.site
-				#logger.debug("Friends: %s" % debug_list(site.friends))
-				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
-				#logger.debug("Enemies: %s" % debug_list(site.enemies))
+#				#logger.debug("Friends: %s" % debug_list(site.friends))
+#				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
+#				#logger.debug("Enemies: %s" % debug_list(site.enemies))
 				if t.owner == t.map.playerTag:
 					moveset = site.friends
 				else:
 					moveset = site.enemies
 				dirs = [ getOppositeDir(d) for move in moveset for d in move.getDirections()]
-				#logger.debug("fdirs: %s" % fdirs)
+#				#logger.debug("fdirs: %s" % fdirs)
 				for dir in [d for d in CARDINALS if not d in dirs]:
 					new_loc = self.getLocation(loc, dir)
-					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
+#					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
 					t.addFringe(new_loc)
 					self.setupFringeLoc(new_loc)
 					t.addFrontier(loc)

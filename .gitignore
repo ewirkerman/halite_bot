@@ -5,6 +5,7 @@ CoopBot.py
 MyBot.zip
 __pycache__/
 bot.debug
+bots/MyBot/*
 db.sqlite3
 error.log
 halite.exe

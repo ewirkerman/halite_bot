@@ -75,14 +75,10 @@ def mark_neighbors(map, loc, type):
 		getattr(new_site, type).append(Move(loc, dir))
 		type_list = getattr(new_site, type)
 		
-		#map_logger.debug("New %s list for %s: %s" % (type, new_loc,debug_list(type_list)) )
+		# map_logger.debug("New %s list for %s: %s" % (type, new_loc,debug_list(type_list)) )
 		
-		# we can't mark the neutrals around a friend at this point because we haven't set all the owner
-		#if type == "friends" and new_site.owner == 0:
-		#	#map_logger.debug("Incrementing a fringe neutral at %s" % new_loc)
-		#	increment_neighbors(map, new_loc, new_site.owner)
-
 def increment_neighbors(map, loc, owner):
+	raise Exception("I should only both with these neighbors if they were either the fringe or frontier of a territory last round - that'll save a lot of time")
 	curr_site = map.getSite(loc)
 	if owner != 0:
 		# logger.debug("Found location %s with owner %s (should be %s and %s)" % (loc.site.loc, loc.site.owner, loc, owner))
@@ -184,7 +180,7 @@ def getInit(getString=getString):
 	#map_logger.debug("Caching map relations")
 	for y in range(m.height):
 		for x in range(m.width):
-			l = Location(x,y)
+			l = m.getLocationXY(x,y)
 			for dir in CARDINALS:
 				m.getLocation(l, dir)
 	

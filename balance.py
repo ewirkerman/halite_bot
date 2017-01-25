@@ -18,8 +18,9 @@ def evalSiteProduction(site, claim = None):
 	
 def evalSiteStrength(site):
 	# should cache the answer of this
-	s = max([site.strength, 1]) ** 1
-	return s
+	
+	# s = max([site.strength, 1]) ** 1
+	return (site.strength or 1) 
 
 def claim_combo__lt__(self, other):
 	return self.value < other.value
@@ -46,17 +47,17 @@ def evaluate_claim_combo(claim_combo):
 		# If the parent isn't moving, add its strength
 		parent_still_str = claim_combo.parent.site.strength + claim_combo.parent.site.production
 		if claim_combo.parent.site.heap.dir:
-			logging.getLogger("bot").debug("Combo parent %s is moving out of the way" % claim_combo.parent)
+			# logging.getLogger("bot").debug("Combo parent %s is moving out of the way" % claim_combo.parent)
 			pass
 		elif strength + parent_still_str < 255:
-			logging.getLogger("bot").debug("No overflow projected - %s staying still" % claim_combo.parent)
+			# logging.getLogger("bot").debug("No overflow projected - %s staying still" % claim_combo.parent)
 			strength += parent_still_str
 			pass
 		elif parent_still_str < strength:
-			logging.getLogger("bot").debug("Overflow projected - I'm switching because I'll be smaller, so don't count me here")
+			# logging.getLogger("bot").debug("Overflow projected - I'm switching because I'll be smaller, so don't count me here")
 			pass
 		else:
-			logging.getLogger("bot").debug("Overflow, but %s bigger than the incoming, so staying STILL" % claim_combo.parent)
+			# logging.getLogger("bot").debug("Overflow, but %s bigger than the incoming, so staying STILL" % claim_combo.parent)
 			strength += parent_still_str
 			pass
 	# logging.getLogger("bot").debug("total strength=%s"% strength)	
@@ -87,16 +88,16 @@ def evaluate_claim_combo(claim_combo):
 		# if you don't have enough strength to take a strong neutral, this isn't a good combo
 		# reminder that we subtracted the neutral's strength from "strength" to start
 		if claim_combo.parent.site.strength > 1 and strength < 1:
-			logging.getLogger("bot").debug("Not enough strength to take the neutral with combo: %s" % debug_list(claim_combo.claims))
+			# logging.getLogger("bot").debug("Not enough strength to take the neutral with combo: %s" % debug_list(claim_combo.claims))
 			strength += 1024
 		
 		#any claim combo that doesn't have at least one moving to a 0 square is bad
 		elif claim_combo.parent.site.strength < 1 and len(claim_combo) != 1:
-			logging.getLogger("bot").debug("Wrong number for taking an empty: %s" % debug_list(claim_combo.claims))
+			# logging.getLogger("bot").debug("Wrong number for taking an empty: %s" % debug_list(claim_combo.claims))
 			strength += 1024
 			
 		else:
-			logging.getLogger("bot").debug("Able to capture a neutral with: %s" % debug_list(claim_combo.claims))
+			# logging.getLogger("bot").debug("Able to capture a neutral with: %s" % debug_list(claim_combo.claims))
 			pass
 			
 		value = (strength + loss_avoidance*loss)
@@ -105,7 +106,7 @@ def evaluate_claim_combo(claim_combo):
 		
 	else:
 		value = -1 * (strength + damage - loss_avoidance*loss - p_loss)
-	logging.getLogger("bot").debug("Claim combo from %s has %s" % (debug_list(claim_combo.claims), value) )
+	# logging.getLogger("bot").debug("Claim combo from %s has %s" % (debug_list(claim_combo.claims), value) )
 	return value
 	
 	
@@ -146,7 +147,7 @@ def claim_move_conditions_parentless(claim):
 		ret = False
 
 	elif claim.root.is_capped():
-		ret = send_gen_conditions(claim.root, claim.gen) # threshhold
+		ret = send_gen_conditions(claim, claim.gen) # threshhold
 		logging.getLogger("bot").debug("claim %s vs root_max %s" % (claim.gen, claim.root.max_gen)  )
 		
 		
@@ -163,19 +164,22 @@ def claim_move_conditions_parentless(claim):
 	# Uncapped requirement for MOVE
 
 def send_gen_conditions(claim, gen_index = None):
-	return claim.gen == claim.root.max_gen and claim_complete_conditions(claim.root)
+	if not claim.gameMap.multipull:
+		return claim.gen == claim.root.max_gen and claim_complete_conditions(claim.root)
 
-	gen = claim.gens[gen_index]
-	if claim.ancestors < 1:
-		# logging.getLogger("bot").debug("%s has no ancestors" % claim)
+	gen = claim.root.gens[gen_index]
+	if claim.root.ancestors < 1:
+		# logging.getLogger("bot").debug("%s has no ancestors" % claim.root)
 		return False
-		
-	# logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )
-	if claim.trail.check_strength_threshhold(gen.preceding_str, gen.strength): 
-		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )
+	
+	prec = gen.get_preceding_str()
+	
+	# logging.getLogger("bot").debug("%s is check_strength_threshhold to cover cap %s?" % (prec, gen.strength) )
+	if claim.root.trail.check_strength_threshhold(prec, gen.strength): 
+		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim.root, claim.root.cap) )
 		return True
 		
-	# logging.getLogger("bot").debug("%s incomplete" % (claim) )
+	logging.getLogger("bot").debug("%s incomplete" % (claim.root) )
 	return False	
 	
 def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
@@ -189,13 +193,14 @@ def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 		return False
 		
 	# logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )
-	# if claim.strength + this_gen_str > claim.trail.threshholds[-1]: 
-	if claim.strength + this_gen_str > claim.trail.threshholds[0]: 
+	if claim.gameMap.multipull and claim.strength + this_gen_str > claim.trail.threshholds[-1]: 
+		return True
+	elif claim.strength + this_gen_str > claim.cap: 
 		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )
 		return True
 		
-	# if not claim.strength and not claim.cap:
-		# # logging.getLogger("bot").debug("%s has 0 and needs 0" % (claim) )
-		# return True
+	if not claim.strength and not claim.cap:
+		# logging.getLogger("bot").debug("%s has 0 and needs 0" % (claim) )
+		return True
 	# logging.getLogger("bot").debug("%s incomplete" % (claim) )
 	return False

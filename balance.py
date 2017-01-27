@@ -122,7 +122,17 @@ def uncapped_claim_benefit(claim):
 		
 	
 	if claim.root is claim:
-		return (1+claim.site.production/20)*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
+		ret = (1+claim.site.production/20)*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
+		# owner = None
+		# for move in claim.root.site.enemies:
+			# owner = move.loc.site.owner
+			# break
+		
+		# m = claim.gameMap.getTerritory() 
+		# t = claim.gameMap.getTerritory(owner) 
+		# if t.strength < m.strength or t.production < m.production:
+			# ret *= 2
+		return ret
 	else:
 		return claim.root.benefit
 

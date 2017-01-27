@@ -62,7 +62,7 @@ def layered_iteration(seed, gameMap, func, sort_func=None, limit=None):
 	while curr_wave:
 		if sort_func:
 			curr_wave.sort(key=sort_func)
-#		logger.debug("\nIterating over gen: %s\n" % debug_list(curr_wave))
+#		# logger.debug("\nIterating over gen: %s\n" % debug_list(curr_wave))
 		next_wave = []
 		for loc in curr_wave:
 #			# logger.debug("Iterating over %s with owner %s" % (loc, loc.site.owner) )
@@ -94,6 +94,23 @@ def main():
 	gameMap = getFrame(test_frame)
 	gameMap.turnCounter = turnCounter
 	gameMap.clock = clock
+	
+	
+	
+	
+	
+	
+	######################################## BOT OPTIONS
+	gameMap.multipull = True
+	gameMap.breakthrough = False
+	gameMap.gen_cap = False
+	########################################
+	
+	
+	
+	
+	
+	
 #	logger.debug("****** START TURN %d ******" % turnCounter)
 	
 	t = gameMap.getTerritory()
@@ -119,7 +136,7 @@ def main():
 	for	i in range(int(len(all_capped_claims)*keep_top_percent)):
 		heapq.heappop(percentile_capped_list)
 	gameMap.target_uncapped_value = percentile_capped_list and percentile_capped_list[0].value or 1
-#	logger.debug("target_uncapped_value = %s" % gameMap.target_uncapped_value)
+#	# logger.debug("target_uncapped_value = %s" % gameMap.target_uncapped_value)
 	
 	enemy_roots = set()
 	for terr in gameMap.getEnemyTerritories():
@@ -165,12 +182,28 @@ def main():
 				
 			working_list = [c for c in l if c.still_expanding]
 #		logger.debug("\n\n")
+		# for root in l:
+			# move_dict = {}
+			# if root.max_gen < 1:
+				# continue
+			# for gen in root.gens.values():
+				# for claim in gen.claims:
+					# move_dict[claim.loc] = claim.gen
+			# logger.info("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
 #	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.frontier, gameMap, get_planned_move))))
+	
 	
 	
 	
 #	logger.debug("I really think I want to start undoing claims if they can't finish and there is a different capped claim underneath them")
 	
+	# for root in all_capped_claims:
+		# move_dict = {}
+		# for gen in root.gens.values():
+			# for claim in gen.claims:
+				# move_dict[claim.loc] = root.strength
+		# logger.info("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
+		
 	
 	
 	######## Claim Move Filtering
@@ -182,17 +215,18 @@ def main():
 	moves = layered_iteration(t.frontier, gameMap, get_loc_move)
 
 	
-	# showing inbound strength
-	loc_inbound = [check_inbound_damage(loc) for loc in list(t.fringe)+list(t.frontier)]
+	# # showing inbound strength
 	
-	logger.info("inb map %s: %s" % (turnCounter, getMoveMap(move_dict = dict(loc_inbound))))
+	# loc_inbound = [check_inbound_damage(loc) for loc in list(t.fringe)+list(t.frontier) if loc.gameMap.get_enemy_strength(loc)]
+	
+	# logger.info("inb map %s: %s" % (turnCounter, getMoveMap(move_dict = dict(loc_inbound))))
 	
 	logger.info("Moves map %s: %s" % (turnCounter, getMoveMap(moves)))
 
 	
 	
 
-	# if test_frame or turnCounter == 100:
+	# if test_frame or turnCounter == 200:
 		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()
@@ -201,11 +235,7 @@ def main():
 # testBot()
 		
 		
-try:
-	myID, gameMap = getInit(getString)
-except Exception as e:
-#	with open("bot.debug", "a") as f:
-		f.write(e)
+myID, gameMap = getInit(getString)
 sendInit("DevBot")
 
 turnCounter = -1

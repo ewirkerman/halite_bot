@@ -78,7 +78,7 @@ def mark_neighbors(map, loc, type):
 		# map_logger.debug("New %s list for %s: %s" % (type, new_loc,debug_list(type_list)) )
 		
 def increment_neighbors(map, loc, owner):
-	raise Exception("I should only both with these neighbors if they were either the fringe or frontier of a territory last round - that'll save a lot of time")
+	# raise Exception("I should only both with these neighbors if they were either the fringe or frontier of a territory last round - that'll save a lot of time")
 	curr_site = map.getSite(loc)
 	if owner != 0:
 		# logger.debug("Found location %s with owner %s (should be %s and %s)" % (loc.site.loc, loc.site.owner, loc, owner))

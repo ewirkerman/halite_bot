@@ -408,13 +408,13 @@ class GameMap:
 							next.append(site.loc)
 						elif site.owner == self.playerTag and type == "friends":
 							next.append(site.loc)
-							strength += l.site.strength
+							strength += l.site.strength + dist * site.production
 						elif site.owner and site.owner != self.playerTag and type == "enemies":
 							next.append(site.loc)
 							if damage_dealable:
 								strength += min([l.site.strength, max_damage])
 							else:
-								strength += l.site.strength
+								strength += l.site.strength + dist * site.production
 			# logger.debug("curr of get_friendly_strength: %s" % debug_list(curr))
 			curr = next
 			# logger.debug("next of get_friendly_strength: %s" % debug_list(curr))

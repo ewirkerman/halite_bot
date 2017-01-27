@@ -38,7 +38,7 @@ def moveCharLookup(dirs):
 		elif 4 in dirs:
 			char = "<"
 		elif 0 in dirs:
-			char = "S"
+			char = "."
 	elif len(dirs) == 2:
 		if 1 in dirs:
 			if 2 in dirs:
@@ -307,7 +307,7 @@ class MoveFork:
 			site = gameMap.getSite(move.loc)
 			dir = move.getDirections()[0]
 			target_site = gameMap.getSite(move.loc, dir)
-#			moves_logger.debug("Sending: %s (str: %s) dir %s to %s (pstr: %s)" % (move.loc, site.strength, move.getDirections(), target_site.loc, target_site.projected_str) )
+#			# moves_logger.debug("Sending: %s (str: %s) dir %s to %s (pstr: %s)" % (move.loc, site.strength, move.getDirections(), target_site.loc, target_site.projected_str) )
 			if dir != 0:
 				returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()[0]) + " "
 		sendString(returnString)

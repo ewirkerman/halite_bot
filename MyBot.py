@@ -226,8 +226,8 @@ def main():
 	
 	
 
-	if test_frame or turnCounter == 200:
-		raise Exception("Test Frame Ended")
+	# if test_frame or turnCounter == 200:
+		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()
 	gameMap.clearTerritories()
@@ -243,7 +243,7 @@ turnCounter = -1
 def main_loop():
 	while True:
 		profiling = True
-		# profiling = False
+		profiling = False
 		if not profiling:
 			main()
 		else:

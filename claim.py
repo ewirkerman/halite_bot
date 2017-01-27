@@ -1010,9 +1010,9 @@ class CappedClaim(Claim):
 		self.production = 0
 		
 		if self.root is self:
-			if map.breakthrough and map.get_friendly_strength(loc=location, dist=4, type="friends") > map.get_friendly_strength(loc=location, dist=8, type="enemies"):
+			if map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=5, type="enemies"):
 				# self.cap = max([min([ 254, map.get_enemy_strength(self.loc, range=1) * 2]),self.site.strength])
-				self.cap = max([min([ 254, gameMap.get_friendly_strength(loc=parent.loc, dist=1, type="enemies") * 2]),self.site.strength])
+				self.cap = max([min([ 254, map.get_friendly_strength(loc=self.parent.loc, dist=1, type="enemies") * 2]),self.site.strength])
 			else:
 				self.cap = self.site.strength
 			self.value = 0

@@ -7,7 +7,7 @@ if (Test-Path bot.debug) {
 }
 Remove-Item stats\*.stats -Force
 $size = (20,25,30,35,40,45,50) | Get-Random
-$size = (50) | Get-Random
+$size = (30) | Get-Random
 $player_count = (2,3,4,5,6) | Get-Random
 $player_count = (2) | Get-Random
 
@@ -20,7 +20,7 @@ $players.add($myBot)
 
 for ($i=1; $i -lt $player_count; $i++)
 {
-  $players.add("python bots\RethinkBot\MyBot.py")
+  $players.add("python bots\ComboBot\MyBot.py")
 }
 
 if ($seed) {

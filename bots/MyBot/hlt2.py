@@ -27,6 +27,10 @@ class Location:
 	def __init__(self, x=0, y=0):
 		self.x = x
 		self.y = y
+		self.N = None
+		self.E = None
+		self.S = None
+		self.W = None
 		self.hash = None
 	
 	def getRealCenter(self):
@@ -152,6 +156,7 @@ class GameMap:
 		self.living_players = set()
 		self.local_maxima = []
 		self.site_production_cache = {}
+		self.best_trail_cache = {}
 
 		logger.info("Recreating all the sites")
 		for y in range(0, self.height):
@@ -230,7 +235,59 @@ class GameMap:
 		return dir
 
 	def getLocation(self, loc, direction = STILL):
-		return self.getLocationXY(loc.x, loc.y, direction)
+#		# logger.debug("Getting loc %s, with direction %s" % (loc, direction) )
+		if not direction:
+			return loc
+		dirAttr = "HNESW"[direction]
+#		# logger.debug("Checking NEW loc %s, with direction %s" % (loc, dirAttr) )
+		if not getattr(loc, dirAttr):
+#			# logger.debug("Getting NEW loc %s, with direction %s" % (loc, direction) )
+			x = loc.x
+			y = loc.y
+			if direction == NORTH:
+#				# logger.debug("Direction: %s"  % (direction) )
+				if y == 0:
+					y = self.height - 1
+				else:
+					y -= 1
+			elif direction == EAST:
+#				# logger.debug("Direction: %s"  % (direction) )
+				if x == self.width - 1:
+					x = 0
+				else:
+					x += 1
+			elif direction == SOUTH:
+#				# logger.debug("Direction: %s"  % (direction) )
+				if y == self.height - 1:
+					y = 0
+				else:
+					y += 1
+			elif direction == WEST:
+#				# logger.debug("Direction: %s"  % (direction) )
+				if x == 0:
+					x = self.width - 1
+				else:
+					x -= 1
+			else:
+#				# logger.debug("Shouldn't have gotten here" )
+				pass
+#			# logger.debug("x,y %s,%s" % (x,y) )
+			new_loc = self.getLocationXY(x,y)
+#			# logger.debug("Saving the %s" % new_loc )
+			setattr(loc, dirAttr, new_loc )
+			# oppDirAttr = "HNESW"[getOppositeDir(direction)]
+			# setattr(new_loc, oppDirAttr, loc)
+#		# logger.debug("Returning NEW loc %s, with direction %s" % (loc, direction) )
+		return getattr(loc, dirAttr)
+		
+	def getLocationXY(self, x, y):
+		loc_key = y*self.width+x
+#		# logger.debug("Finding location for key %s" % loc_key)
+		if loc_key not in location_cache:
+			location_cache[loc_key] = Location(x,y)
+		
+#		# logger.debug("Returning location for key %s" % loc_key)
+		return location_cache[loc_key]
 		
 	def neighbors(self, loc, n=1, include_self=False):
 		#"Iterable over the n-distance neighbors of a given loc.  For single-step neighbors, the enumeration index provides the direction associated with the neighbor."
@@ -254,43 +311,6 @@ class GameMap:
 					combos = ((dx, dy) for dy in range(-n, n+1) for dx in range(-n, n+1) if abs(dx) + abs(dy) <= n)
 					neighbor_range_cache[loc][n] = [self.getLocationXY(loc.x+dx, loc.y+dy) for dx, dy in combos if include_self or dx or dy]
 		return [loc.site for loc in neighbor_range_cache[loc][n]]
-
-		
-	def updateLocationDirection(self, x,y,loc_key,direction):
-		if direction != STILL:
-			if direction == NORTH:
-				if y == 0:
-					y = self.height - 1
-				else:
-					y -= 1
-			elif direction == EAST:
-				if x == self.width - 1:
-					x = 0
-				else:
-					x += 1
-			elif direction == SOUTH:
-				if y == self.height - 1:
-					y = 0
-				else:
-					y += 1
-			elif direction == WEST:
-				if x == 0:
-					x = self.width - 1
-				else:
-					x -= 1
-			location_cache[loc_key][direction] = self.getLocationXY(x,y)
-		else:
-			location_cache[loc_key][STILL] = Location(x,y)
-	
-	def getLocationXY(self, x, y, direction = STILL):
-		loc_key = y*self.width + x
-		if loc_key not in location_cache:
-			location_cache[loc_key] = {}
-		if direction not in location_cache[loc_key]:
-			self.updateLocationDirection(x,y,loc_key,direction)
-		
-		return location_cache[loc_key][direction]
-		
 		
 	def getSite(self, l, direction = STILL):
 #		#logger.debug("getSite")
@@ -359,7 +379,48 @@ class GameMap:
 			if site.owner or not site.strength or breach:
 				enemy_str += sum([min([move.loc.site.strength, max_damage]) for move in site.enemies])
 #		# logger.debug("Got enemy strength for %s and found %s sites within %s range with %s strength" % (loc, len(neighbors), range, enemy_str))
-		return enemy_str	
+		return enemy_str
+		
+	def get_dealable_damage(self, loc):
+		return self.get_friendly_strength(loc, type="enemies", damage_dealable=True)
+		
+	def get_friendly_strength(self, loc = None, dist=None, type="friends", damage_dealable=None):
+		if not dist:
+			dist = 1
+		
+		done = set([loc])
+		strength = 0
+		curr = [loc]
+		type_list = getattr(loc.site, type)
+		max_damage = 256
+		if damage_dealable:
+			max_damage = loc.site.strength
+		while curr and dist:
+			dist -= 1
+			next = []
+			for l in curr:
+				sites = [move.loc.site for move in type_list]
+				# for site in self.neighbors(l):
+				for site in sites:
+#					# logger.debug("checking %s, %s with str %s"%(site.owner, site.loc, site.strength))
+					if site.loc not in next and site.loc not in done:
+						if not site.owner and not site.strength:
+							next.append(site.loc)
+						elif site.owner == self.playerTag and type == "friends":
+							next.append(site.loc)
+							strength += l.site.strength + dist * site.production
+						elif site.owner and site.owner != self.playerTag and type == "enemies":
+							next.append(site.loc)
+							if damage_dealable:
+								strength += min([l.site.strength, max_damage])
+							else:
+								strength += l.site.strength + dist * site.production
+#			# logger.debug("curr of get_friendly_strength: %s" % debug_list(curr))
+			curr = next
+#			# logger.debug("next of get_friendly_strength: %s" % debug_list(curr))
+			done.update(curr)
+#		# logger.debug("Found %s strength in %s dist of %s of type %s" % (strength, dist, loc, type))
+		return strength
 	
 	def getTerritories(self):
 		return self.territories.values()

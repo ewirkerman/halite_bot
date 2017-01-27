@@ -624,12 +624,6 @@ class Claim:
 		# return self.__hash__() ==  other.__hash__() and self.gen == other.gen and self.is_capped() == other.is_capped()
 		# #return self.loc is other.loc and self.get_parents() is other.get_parents() and self.root is other.root and self.gen is other.gen
 		
-	def is_capped(self):
-		return type(self) is CappedClaim
-		
-	def is_uncapped(self):
-		return type(self) is UncappedClaim
-	
 		
 	def get_best_children(self, available_children):
 		parent = self
@@ -974,7 +968,13 @@ class UncappedClaim(Claim):
 		# logger.debug("VAL:%s\t%s\t%s\t%s\t%s" % (self.is_capped(),self.benefit, self.cost, self.value, self.gen))
 		pass
 			
-
+	
+			
+	def is_capped(self):
+		return False
+	
+	def is_uncapped(self):
+		return True
 		
 	def build_map_dict(self):
 		d = {}
@@ -1040,7 +1040,7 @@ class CappedClaim(Claim):
 					self.value = self.root.value / (self.site.strength or 1)
 			else:
 				if map.multipull:
-					self.value = self.root.trail.get_value(self.root.strength) * .99 ** self.gen
+					self.value = self.root.trail.get_value(self.root.strength) * .8 ** self.gen
 				else:
 					self.value = self.root.value * .9 ** self.gen
 			self.strength = self.site.strength
@@ -1055,7 +1055,11 @@ class CappedClaim(Claim):
 		pass
 		
 			
+	def is_capped(self):
+		return True
 	
+	def is_uncapped(self):
+		return False
 		
 	def build_map_dict(self):
 		d = {}

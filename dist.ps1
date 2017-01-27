@@ -24,6 +24,8 @@ if (-Not (Test-Path $botPath)) {
 	mkdir $botPath	
 }
 cp $PSScriptRoot\*.py $botPath
+cp $PSScriptRoot\install.sh $botPath
+cp $PSScriptRoot\LANGUAGE $botPath
 cp $PSScriptRoot\halite.exe $botPath
 if (Test-Path $botPath\RandomBot.py) {
 	Remove-Item $botPath\RandomBot.py

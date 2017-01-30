@@ -885,23 +885,26 @@ class Trail:
 			
 		benefit = 0
 		cost = 0
-		# logger.debug("Old value is %s" % self.value)
+		logger.debug("Old value is %s" % self.value)
 		for i in range(len(self.path),0,-1):
 			benefit += balance.evalSiteProduction(self.path[i-1].site)
 			cost += balance.evalSiteStrength(self.path[i-1].site)
-			self.threshhold_values.append(benefit / cost)
+			logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
+			self.threshhold_values.append(benefit  * 1.0/ cost)
+			logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
 		self.threshhold_values.reverse()
 		for i in range(len(self.threshhold_values)):
-			# logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
+			logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
 			pass
 		
 	def get_value(self, strength = 0):
 		if not self.gameMap.multipull:
 			return self.value
 	
+		# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
 		for i in range(len(self.threshholds)):
 			if strength <= self.threshholds[i]:
-				# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
+				logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
 				return self.threshhold_values[i]
 		return self.threshhold_values[-1]
 		
@@ -1019,12 +1022,15 @@ class CappedClaim(Claim):
 			self.ancestors = 0
 			self.benefit = balance.evalSiteProduction(self.site, claim = self)
 			self.cost = balance.evalSiteStrength(self.site)
+			logger.debug("I'm a root capped claim")
 			if map.multipull:
 				self.trail = self.get_best_trail()
 				self.trail.define_threshholds()
 				self.value = self.trail.get_value()
+				logger.debug("I'm a multipull and my value is %s" % self.value)
 			else:
 				self.value = self.get_best_trail().value
+				logger.debug("I'm a monopull and my value is %s" % self.value)
 			self.childless = set()
 			# self.move = Move(self.loc, STILL)
 			self.gens = {}

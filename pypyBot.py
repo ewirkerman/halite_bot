@@ -133,6 +133,7 @@ def main():
 		if not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
 			c_claim = CappedClaim(gameMap, loc)
 			all_capped_claims.append(c_claim)
+	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
 	
 	
 	#### Balancing of uncapped values
@@ -156,7 +157,7 @@ def main():
 		all_uncapped_claims.append(claim)
 	
 	all_capped_claims = [claim for claim in all_capped_claims if claim.value > 0]
-	
+	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
 	
 	
 	####### Natural separation if there are no outside threats

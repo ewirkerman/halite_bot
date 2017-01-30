@@ -13,5 +13,6 @@ if len(pypybin) == 0:
 else:
     pypybin = pypybin[0]
 
+pypybin = "C:\Progra~2\pypy\pypy.exe"
 # call the script with the relative path to pypy
 call(pypybin + " ./pypyBot.py", shell=True)

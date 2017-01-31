@@ -41,10 +41,11 @@ $scripts = Get-ChildItem $botPath *.py -rec
 foreach ($file in $scripts)
 {
     (Get-Content $file.PSPath) |
-    Foreach-Object { $_ -replace "^(.*?[a-zA-Z_]*?\.debug)", "#$&" } |
+    Foreach-Object { $_ -creplace "^(.*?[a-zA-Z_]*?\.debug)", "#$&" } |
     Set-Content $file.PSPath
 }
 
 ZipFiles $PSScriptRoot\MyBot.zip $botPath
+cp $PSScriptRoot\MyBot.zip $botPath
 	
 

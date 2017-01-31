@@ -214,12 +214,13 @@ def find_loc_move(loc, depth=0):
 	inb_str = sum([claim.site.strength for claim in best if claim.site.heap.dir])
 	self.site.inb_str = inb_str
 	total_str = inb_str + self.site.strength
-	# logger.debug("%s vs %s for %s overflow" % (inb_str, self.site.strength, self.loc) )
+	logger.debug("%s vs %s for %s overflow" % (inb_str, self.site.strength, self.loc) )
 	if ( not self.site.heap.dir == self.get_parent_direction() ) and self.site.strength < inb_str and total_str > 255:
-		# logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
+		logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
 		biggest = max(best, key=get_claim_strength)
 		self.site.heap.filter_to_loc(None)
 		self.site.heap.dir = util.getOppositeDir(biggest.dir)
+	logger.debug("Ending find_move_loc")
 
 def get_planned_move(loc):
 	if loc.site.heap.get_best_claim() and loc.site.owner == loc.gameMap.playerTag:
@@ -765,10 +766,10 @@ class Claim:
 		
 		child.site.heap.add_claim(child)
 		if child.is_top_claim():
-			logger.debug("child %s is spread and top" % child)
+			# logger.debug("child %s is spread and top" % child)
 			pass
 		else:
-			logger.debug("child %s is spread but isn't top" % child)
+			# logger.debug("child %s is spread but isn't top" % child)
 			pass
 		
 	def deactivate_child(self, child):
@@ -833,6 +834,7 @@ class Claim:
 class Trail:
 	def __init__(self, trail=None, new_loc=None, claim=None):
 		assert claim is not None or (trail is not None and new_loc is not None)
+		self.highest_threshhold = None
 		if claim:
 			self.loc = claim.loc
 			self.site = claim.site
@@ -841,15 +843,17 @@ class Trail:
 			self.path = [claim.loc]
 			self.benefit = balance.evalSiteProduction(self.site)
 			self.cost = balance.evalSiteStrength(self.site)
-			self.value = self.benefit / self.cost
+			self.value = self.benefit * 1.0/ self.cost
 		elif trail and new_loc:
+			self.claim = trail.claim
 			self.path = list(trail.path) + [new_loc]
 			self.loc = new_loc
+			self.site = new_loc.site
 			self.site = new_loc.site
 			self.gameMap = trail.gameMap
 			self.benefit = trail.benefit + balance.evalSiteProduction(self.site)
 			self.cost = trail.cost + balance.evalSiteStrength(self.site)
-			self.value = self.benefit / self.cost
+			self.value = self.benefit * 1.0 / self.cost
 		else:
 			raise Exception("Unable to initialize Trail with %s, %s, %s" % (claim, trail, new_loc))
 		
@@ -885,16 +889,16 @@ class Trail:
 			
 		benefit = 0
 		cost = 0
-		logger.debug("Old value is %s" % self.value)
+		# logger.debug("Old value is %s" % self.value)
 		for i in range(len(self.path),0,-1):
 			benefit += balance.evalSiteProduction(self.path[i-1].site)
 			cost += balance.evalSiteStrength(self.path[i-1].site)
-			logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
+			# logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
 			self.threshhold_values.append(benefit  * 1.0/ cost)
-			logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
+			# logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
 		self.threshhold_values.reverse()
 		for i in range(len(self.threshhold_values)):
-			logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
+			# logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
 			pass
 		
 	def get_value(self, strength = 0):
@@ -904,23 +908,69 @@ class Trail:
 		# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
 		for i in range(len(self.threshholds)):
 			if strength <= self.threshholds[i]:
-				logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
+				# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
 				return self.threshhold_values[i]
 		return self.threshhold_values[-1]
 		
 	def check_strength_threshhold(self, base, delta):
+		# if not self.highest_threshhold:
+			# self.highest_threshhold = self.find_highest_threshhold()
+	
 		if not self.gameMap.multipull:
 			return base + delta > self.threshholds[0] or (not base and not self.threshholds[0])
 	
 		if not base and not self.threshholds[0]:
 			return True
 		
+		# let's say base+delta is over the lowest threshhold so we COULD go
+		# now we check how many turns it'd take to get to the next threshhold with only our total_production
+		# the strength we save by doing two at once is the total_production
+		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold - 1
+		
+		# let's say we decide we want to wait for the second
+		# do we wait for the third?
+		# we check how many turns it will take to get to the third threshhold with our total production
+		# the strength we save by doing two at once is the total_production * 2
+		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold -2 + the second production * turns - 1
+		
+		
+		
+		potential_multis = len(self.threshholds)
+		production = self.claim.get_total_production()
+		
+		
+		
+		# the claim total production is the cost of going at a lower i * len-i
+		# the production of the ith tile is the cost of waiting to a higher i * 
+		
+		
+		first_threshhold_passed = None
+		missed_production = 0
 		for i in range(len(self.threshholds)):
 			logger.info("Is base %s under %s and base %s + delta %s over %s?" % (base, self.threshholds[i], base, delta, self.threshholds[i]))
+			
+			# You definitely do to go if you don't have enough for a threshhold
+			# either you're under the first one, or you would've decided to wait for a future one already
 			if base + delta <= self.threshholds[i]:
 				return False
 			if base < self.threshholds[i] and base + delta >= self.threshholds[i]:
-				return True
+				if not first_threshhold_passed:
+					first_threshhold_passed = i
+					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
+				
+				if self.gameMap.chunkedpull:
+					if i < len(self.threshholds) - 1:
+						wait_turns = math.ceil((self.threshholds[i+1]-base-delta) * 1.0/ production)
+						missed_production += self.path[i].site.production * (wait_turns * (i-first_threshhold_passed) - 1)
+						logger.debug("There is another threshhold beyond this one but I'd need to wait %s turns more, missing %s production" % (wait_turns, missed_production))
+						move_lost_production = production*(i-first_threshhold_passed+1)
+						logger.debug("If I don't grab them together though, I'll lose %s" % (move_lost_production))
+						if missed_production > move_lost_production:
+							return True
+					else:
+						return True
+				else:
+					return True
 		return False
 		
 		
@@ -1022,15 +1072,15 @@ class CappedClaim(Claim):
 			self.ancestors = 0
 			self.benefit = balance.evalSiteProduction(self.site, claim = self)
 			self.cost = balance.evalSiteStrength(self.site)
-			logger.debug("I'm a root capped claim")
+			# logger.debug("I'm a root capped claim")
 			if map.multipull:
 				self.trail = self.get_best_trail()
 				self.trail.define_threshholds()
 				self.value = self.trail.get_value()
-				logger.debug("I'm a multipull and my value is %s" % self.value)
+				# logger.debug("I'm a multipull and my value is %s" % self.value)
 			else:
 				self.value = self.get_best_trail().value
-				logger.debug("I'm a monopull and my value is %s" % self.value)
+				# logger.debug("I'm a monopull and my value is %s" % self.value)
 			self.childless = set()
 			# self.move = Move(self.loc, STILL)
 			self.gens = {}

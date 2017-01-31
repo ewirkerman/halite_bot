@@ -13,6 +13,12 @@ if len(pypybin) == 0:
 else:
     pypybin = pypybin[0]
 
-pypybin = "C:\Progra~2\pypy\pypy.exe"
-# call the script with the relative path to pypy
-call(pypybin + " ./pypyBot.py", shell=True)
+path = pypybin + " ./pypyBot.py"
+if os.name == 'nt':
+	pypybin = "C:\Progra~2\pypy\pypy.exe"
+	
+	path = pypybin + " ./pypyBot.py"
+	# path = pypybin + " ./bots/MyBot/pypyBot.py"
+
+
+call(path, shell=True)

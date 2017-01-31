@@ -109,7 +109,7 @@ class Territory:
 	
 	def addLocation(self, location):
 		self.count += 1
-		if not type(location) is Site:
+		if hasattr(location, "site"):
 			site = self.map.getSite(location)
 		else:
 			site = location

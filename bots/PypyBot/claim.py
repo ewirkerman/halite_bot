@@ -845,7 +845,6 @@ class Trail:
 			self.cost = balance.evalSiteStrength(self.site)
 			self.value = self.benefit * 1.0/ self.cost
 		elif trail and new_loc:
-			self.claim = trail.claim
 			self.path = list(trail.path) + [new_loc]
 			self.loc = new_loc
 			self.site = new_loc.site
@@ -921,53 +920,21 @@ class Trail:
 	
 		if not base and not self.threshholds[0]:
 			return True
-		
-		# let's say base+delta is over the lowest threshhold so we COULD go
-		# now we check how many turns it'd take to get to the next threshhold with only our total_production
-		# the strength we save by doing two at once is the total_production
-		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold - 1
-		
-		# let's say we decide we want to wait for the second
-		# do we wait for the third?
-		# we check how many turns it will take to get to the third threshhold with our total production
-		# the strength we save by doing two at once is the total_production * 2
-		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold -2 + the second production * turns - 1
-		
-		
-		
-		potential_multis = len(self.threshholds)
-		production = self.claim.get_total_production()
-		
-		
+			
+		# potential_multis = len(self.threshholds)
+		# production = self.claim.get_total_production() - 
+		# wait_turns = ((self.threshholds[i+1]-base-delta) / production) + 1
 		
 		# the claim total production is the cost of going at a lower i * len-i
 		# the production of the ith tile is the cost of waiting to a higher i * 
 		
 		
-		first_threshhold_passed = None
-		missed_production = 0
 		for i in range(len(self.threshholds)):
 			logger.info("Is base %s under %s and base %s + delta %s over %s?" % (base, self.threshholds[i], base, delta, self.threshholds[i]))
 			if base + delta <= self.threshholds[i]:
 				return False
 			if base < self.threshholds[i] and base + delta >= self.threshholds[i]:
-				if not first_threshhold_passed:
-					first_threshhold_passed = i
-#					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
-				
-				if self.gameMap.chunkedpull:
-					if i < len(self.threshholds) - 1:
-						wait_turns = math.ceil((self.threshholds[i+1]-base-delta) * 1.0/ production)
-						missed_production += self.path[i].site.production * (wait_turns * (i-first_threshhold_passed) - 1)
-#						logger.debug("There is another threshhold beyond this one but I'd need to wait %s turns more, missing %s production" % (wait_turns, missed_production))
-						move_lost_production = production*(i-first_threshhold_passed+1)
-#						logger.debug("If I don't grab them together though, I'll lose %s" % (move_lost_production))
-						if missed_production > move_lost_production:
-							return True
-					else:
-						return True
-				else:
-					return True
+				return True
 		return False
 		
 		

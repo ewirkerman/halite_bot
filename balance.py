@@ -14,6 +14,8 @@ def evalSiteProduction(site, claim = None):
 		if site.enemies:
 			p += sum([min([move.loc.site.strength, site.strength]) for move in site.enemies])
 		site.loc.gameMap.site_production_cache[site.loc] = p
+		
+	# logging.getLogger("bot").debug("evalSiteProduction = %s" % site.loc.gameMap.site_production_cache[site.loc])
 	return site.loc.gameMap.site_production_cache[site.loc]
 	
 def evalSiteStrength(site):

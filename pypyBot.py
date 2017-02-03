@@ -54,7 +54,7 @@ def claims_to_map(title, turnCounter, claims):
 		logger.debug("%s %s: %s" % (title, turnCounter, getMoveMap(move_dict = m_d)) )
 		pass
 
-def layered_iteration(seed, gameMap, func, sort_func=None, limit=None):
+def layered_iteration(seed, gameMap, func, sort_func=None, limit=None, owner=gameMap.playerTag):
 	curr_wave = list(seed)
 	done = set(seed)
 	results = []
@@ -72,12 +72,24 @@ def layered_iteration(seed, gameMap, func, sort_func=None, limit=None):
 		next_wave = []
 		for loc in curr_wave:
 			# logger.debug("Iterating over %s with owner %s" % (loc, loc.site.owner) )
-			for move in loc.site.friends:
-				child_loc = move.loc
-				if child_loc not in done:
-					done.add(child_loc)
-					next_wave.append(child_loc)
-					# logger.debug("Iteration child %s" % child_loc)
+			if owner == 0:
+			
+			elif owner != gameMap.playerTag:
+				for move in loc.site.enemies:
+					child_loc = move.loc
+					if child_loc.site.owner == owner:
+						if child_loc not in done:
+							done.add(child_loc)
+							next_wave.append(child_loc)
+							# logger.debug("Iteration child %s" % child_loc)
+			else:
+				for move in loc.site.friends:
+					child_loc = move.loc
+					if child_loc not in done:
+						done.add(child_loc)
+						next_wave.append(child_loc)
+						# logger.debug("Iteration child %s" % child_loc)
+			
 			if func:
 				results.append(func(loc))
 			# pass
@@ -94,7 +106,7 @@ def take_turn(gameMap):
 	######################################## BOT OPTIONS
 	gameMap.multipull = False
 	gameMap.chunkedpull = gameMap.multipull and True
-	gameMap.breakthrough = False
+	gameMap.breakthrough = True
 	gameMap.gen_cap = False
 	########################################
 	
@@ -119,7 +131,7 @@ def take_turn(gameMap):
 		if not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]):
 			c_claim = CappedClaim(gameMap, loc)
 			all_capped_claims.append(c_claim)
-	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
+	
 	
 	
 	#### Balancing of uncapped values
@@ -143,7 +155,7 @@ def take_turn(gameMap):
 		all_uncapped_claims.append(claim)
 	
 	all_capped_claims = [claim for claim in all_capped_claims if claim.value > 0]
-	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
+	
 	
 	
 	####### Natural separation if there are no outside threats
@@ -157,8 +169,8 @@ def take_turn(gameMap):
 	
 	
 	
-	logger.debug("all_capped_claims: %s" % debug_list(all_capped_claims) )
-	logger.debug("all_uncapped_claims: %s" % debug_list(all_uncapped_claims) )
+	logger.debug("\nall_capped_claims: \n%s" % "\n".join([claim.__str__() for claim in all_capped_claims]) )
+	logger.debug("\nall_uncapped_claims: \n%s" % "\n".join([claim.__str__() for claim in all_uncapped_claims]) )
 	
 	
 	######## Claim Spreading
@@ -188,15 +200,20 @@ def take_turn(gameMap):
 	
 	
 	
+	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.frontier, gameMap, get_planned_move, ))))
+	
+	
+	
+	
 	logger.debug("I really think I want to start undoing claims if they can't finish and there is a different capped claim underneath them")
 	
-	for root in all_capped_claims:
+	for root in all_capped_claims + all_uncapped_claims:
 		move_dict = {}
 		for gen in root.gens.values():
 			for claim in gen.claims:
-				move_dict[claim.loc] = "%s%s" % ("S^>v<"[claim.get_parent_direction()],int(claim.value*10000))
+				move_dict[claim.loc] = "%s%s" % ("S^>v<"[claim.get_parent_direction()],int(claim.value*1000))
 		if root.max_gen:
-			logger.debug("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
+			logger.debug("root map %s %s:%s" % (turnCounter, root.loc, getMoveMap(move_dict = move_dict)))
 			pass
 		
 	
@@ -221,7 +238,7 @@ def take_turn(gameMap):
 	
 	
 	
-	# if test_frame or turnCounter == 200:
+	# if turnCounter == 40:
 		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()

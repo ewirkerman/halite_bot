@@ -116,8 +116,9 @@ class Territory:
 			location = site.loc
 		self.territory.add(location)
 		self.production += site.production
-		# logger.debug("Adding %s production from %s to %s's territory" % (site.production, location, self.owner) )
 		self.strength += site.strength
+		logger.debug("Adding %s production from %s to %s's territory - now %s" % (site.production, location, self.owner, self.production) )
+		logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
 
 	def getLocations(self):
 		return self.territory
@@ -361,25 +362,6 @@ class GameMap:
 				heapq.heappush(pair)
 		
 		return heap[0]
-	
-	def get_enemy_strength(self, loc, range=None, damage_dealable=False, breach=False):
-	
-		enemy_str = 0
-		max_damage = 256
-		if damage_dealable:
-			range = range or 1
-			max_damage = loc.site.strength
-		if not range:
-			if damage_dealable:
-				range = 1
-			else:
-				range = 2
-		neighbors = self.neighbors(loc, n=range-1, include_self=True)
-		for site in neighbors:
-			if site.owner or not site.strength or breach:
-				enemy_str += sum([min([move.loc.site.strength, max_damage]) for move in site.enemies])
-		# logger.debug("Got enemy strength for %s and found %s sites within %s range with %s strength" % (loc, len(neighbors), range, enemy_str))
-		return enemy_str
 		
 	def get_dealable_damage(self, loc):
 		return self.get_friendly_strength(loc, type="enemies", damage_dealable=True)
@@ -391,16 +373,19 @@ class GameMap:
 		done = set([loc])
 		strength = 0
 		curr = [loc]
-		type_list = getattr(loc.site, type)
 		max_damage = 256
 		if damage_dealable:
 			max_damage = loc.site.strength
 		while curr and dist:
+			# logger.debug("Checking dist %s" % dist)
 			dist -= 1
 			next = []
 			for l in curr:
+				type_list = getattr(l.site, type)
 				sites = [move.loc.site for move in type_list]
-				# for site in self.neighbors(l):
+				if sites:
+					# logger.debug("Found %s sites: %s" % (type,debug_list([site.loc for site in sites])))
+					pass
 				for site in sites:
 					# logger.debug("checking %s, %s with str %s"%(site.owner, site.loc, site.strength))
 					if site.loc not in next and site.loc not in done:
@@ -408,13 +393,13 @@ class GameMap:
 							next.append(site.loc)
 						elif site.owner == self.playerTag and type == "friends":
 							next.append(site.loc)
-							strength += l.site.strength + dist * site.production
+							strength += site.strength + dist * site.production
 						elif site.owner and site.owner != self.playerTag and type == "enemies":
 							next.append(site.loc)
 							if damage_dealable:
-								strength += min([l.site.strength, max_damage])
+								strength += min([site.strength, max_damage])
 							else:
-								strength += l.site.strength + dist * site.production
+								strength += site.strength + dist * site.production
 			# logger.debug("curr of get_friendly_strength: %s" % debug_list(curr))
 			curr = next
 			# logger.debug("next of get_friendly_strength: %s" % debug_list(curr))
@@ -500,6 +485,9 @@ class GameMap:
 			for loc in t.territory:
 				#logger.debug("Territory Loc: %s" % loc)
 				site = loc.site
+				
+				# we can't do it during the parsing because the owners come through before the strenghts I guess?
+				t.strength += site.strength
 				#logger.debug("Friends: %s" % debug_list(site.friends))
 				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
 				#logger.debug("Enemies: %s" % debug_list(site.enemies))

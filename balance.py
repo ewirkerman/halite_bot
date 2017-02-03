@@ -165,7 +165,36 @@ def claim_move_conditions_parentless(claim):
 		
 	else: # UNCAPPED
 		if claim.gen == 1 and claim.root.site.strength > 0:
-			ret = False
+			if claim.gameMap.breakthrough and claim.site.strength > parent.site.strength:
+			
+				owner = None
+				for move in parent.site.enemies:
+					owner = move.loc.site.owner
+					break
+				
+				m = claim.gameMap.getTerritory() 
+				t = claim.gameMap.getTerritory(owner) 
+				logging.getLogger("bot").debug("Checking for breakthrough: ms:%s\tts:%s\tmp:%s\ttp:%s" %(m.strength, t.strength, m.production, t.production))
+				if t.strength < m.strength and t.production < m.production:
+					ret = True
+					logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, claim.loc))
+				elif t.strength < m.strength or t.production < m.production:
+					local_e = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=5, type="enemies")
+					local_m = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=4, type="friends")
+					logging.getLogger("bot").debug("Checking for local breakthrough: ms:%s\tts:%s" %(local_m, local_e))
+					if local_m - parent.site.strength > local_e:
+						ret = True
+						logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, parent.loc))
+					else:
+						ret = False
+						logging.getLogger("bot").debug("Failed to breakthrough")
+				else:
+					logging.getLogger("bot").debug("Failed to breakthrough")
+					ret = False
+				
+				
+			else:
+				ret = False
 		else:
 			# This I feel is a hack because I should just be able to count the incoming strength and beat it
 			# ret = claim.site.strength > claim.site.production*7

@@ -66,6 +66,9 @@ def validate_direction(claim, parent):
 		parent_e_str = parent.parent_e_str
 		is_checker = claim.is_checker_on()
 		# Last gen of a collapsing capped claim
+		
+		
+		
 		if will_move and claim.is_capped():
 			if claim.root.site.strength and not claim.site.strength:
 				# logger.debug("%s shouldn't move even for a capped claim because I'll add nothing" % claim)
@@ -161,21 +164,22 @@ def find_loc_move(loc, depth=0):
 		
 	# the strength of enemies that could attack the parent loc
 	# self.parent_e_str = self.gameMap.get_enemy_strength(parent.loc)
-	self.parent_e_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=2, type="enemies")
-	self.breach_str = 0
-	
-	if self.parent_e_str:
-		# self.breach_str = self.gameMap.get_enemy_strength(parent.loc, range = 1)
-		self.breach_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=1, type="enemies")
-	
 	children = get_inbound_children(loc)
 	logger.debug( "\nFiltering (depth = %s) children of %sf%s (owned by %s): %s" % (depth, loc.gameMap.turnCounter,loc, loc.site.owner, debug_list(children)) )	
-	# logger.debug( "Is %s breach_str greater than %s neutral parent strength?" %(self.breach_str, parent.site.strength))
-	# raise Exception("Get real child consent here, so we can actually reject the others")
+
+	
+	self.parent_e_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=2, type="enemies")
+	self.breach_str = 0
+	if self.parent_e_str:
+		self.breach_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=1, type="enemies")
+		logger.debug( "Found breach_str of %s" % (self.breach_str))
+
+		
 	moveable_children = [child for child in children if validate_direction(child, self)]
 	logger.debug( "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
 	best = self.get_best_children(moveable_children)
-	breach = not self.is_root() and parent.is_root() and parent.site.strength and parent.site.strength < self.breach_str
+	breach = parent.is_root() and parent.site.strength and parent.site.strength < self.breach_str
+	logger.debug( "checking breach: P.is_root: %s\tP.str: %s\tP.breach_str: %s" % (parent.is_root(), parent.site.strength, self.breach_str) )	
 	if breach:
 		logger.debug("BREACH!!" )
 		pass
@@ -190,9 +194,11 @@ def find_loc_move(loc, depth=0):
 		# Being in best means that you will move
 		if breach:
 			logger.debug("BREACH child %s rejected by parent %s" % (child, self) )
-			child.site.heap.filter_out_loc(loc)
-			child.site.heap.dir = None
-			check_new_parent(child, depth)
+			# child.site.heap.filter_out_loc(loc)
+			# child.site.heap.dir = None
+			# check_new_parent(child, depth)
+			
+			
 		
 		elif child in best:
 			logger.debug("MOVE child %s (%s) accepted by parent %s" % ("HNESW"[child.dir], child, loc) )
@@ -215,7 +221,13 @@ def find_loc_move(loc, depth=0):
 	self.site.inb_str = inb_str
 	total_str = inb_str + self.site.strength
 	logger.debug("%s vs %s for %s overflow" % (inb_str, self.site.strength, self.loc) )
-	if ( not self.site.heap.dir == self.get_parent_direction() ) and self.site.strength < inb_str and total_str > 255:
+	if breach and children:
+		biggest = max(children, key=get_claim_strength)
+		self.site.heap.filter_to_loc(None)
+		child = biggest.create_child(util.getOppositeDir(biggest.dir))
+		biggest.activate_child(child)
+		self.site.heap.dir = util.getOppositeDir(biggest.dir)
+	elif ( not self.site.heap.dir == self.get_parent_direction() ) and self.site.strength < inb_str and total_str > 255:
 		logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
 		biggest = max(best, key=get_claim_strength)
 		self.site.heap.filter_to_loc(None)
@@ -231,10 +243,10 @@ def get_planned_move(loc):
 		
 def get_loc_move(loc):
 	if loc.site.heap.dir:
-		# logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
+		logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
 		return Move(loc, loc.site.heap.dir)
 	else:
-		# logger.debug("%s never picked a direction, staying STILL" % (loc) )
+		logger.debug("%s never picked a direction, staying STILL" % (loc) )
 		return Move(loc, STILL)
 
 class ClaimHeap:
@@ -992,8 +1004,17 @@ class UncappedClaim(Claim):
 		if self.root is self:
 			self.gens = {}
 			self.benefit = balance.uncapped_claim_benefit(self)
-			self.cost = self.site.strength or 1
+			# self.cost = self.site.strength or 1
+			self.cost = 1
 			self.value = self.benefit / self.cost
+			if self.parent.site.owner == 0:
+				self.value *= 1+self.gameMap.num_non_friends(self.loc)
+				# e_str = self.gameMap.get_enemy_strength(parent.loc, range=1)
+				e_str = self.gameMap.get_friendly_strength(loc=self.loc, dist=1, type="enemies")
+				
+				# if e_str:
+					# self.value *= 10
+			
 			self.childless = set()
 			self.ancestors = 0
 			# self.move = Move(self.loc, STILL)
@@ -1003,13 +1024,7 @@ class UncappedClaim(Claim):
 			self.benefit = parent.benefit
 			self.cost = 5 + self.gen
 			self.value = self.root.value * .95**self.gen
-			if self.parent.site.owner == 0:
-				self.value *= 2+self.gameMap.num_non_friends(self.loc)
-				# e_str = self.gameMap.get_enemy_strength(parent.loc, range=1)
-				e_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=1, type="enemies")
-				
-				if e_str:
-					self.value *= 10
+			
 			
 			self.strength = self.site.strength
 			self.production = self.site.production
@@ -1063,7 +1078,7 @@ class CappedClaim(Claim):
 		self.production = 0
 		
 		if self.root is self:
-			if map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=5, type="enemies"):
+			if False and map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=5, type="enemies"):
 				# self.cap = max([min([ 254, map.get_enemy_strength(self.loc, range=1) * 2]),self.site.strength])
 				self.cap = max([min([ 254, map.get_friendly_strength(loc=self.parent.loc, dist=1, type="enemies") * 2]),self.site.strength])
 			else:

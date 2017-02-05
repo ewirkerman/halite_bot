@@ -78,7 +78,10 @@ def setMapChar(move_dict, move):
 	loc = move.loc
 	dirs = set(move.getDirections())
 	
-	move_dict[loc] = moveCharLookup(dirs)
+	if loc.site.owner == loc.gameMap.playerTag:
+		move_dict[loc] = moveCharLookup(dirs)
+	else:
+		move_dict[loc] = "?"
 	
 
 def getMoveMap(moves = None, move_dict = None, func=setMapChar):

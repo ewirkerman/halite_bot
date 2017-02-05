@@ -91,9 +91,9 @@ def increment_neighbors(map, loc, owner):
 		type = "friends"
 	elif owner == 0: 
 		type = "neutrals"
-		if curr_site.strength == 0:
-			type = "empties"
-			mark_neighbors(map, loc, type)
+		# if curr_site.strength == 0:
+			# type = "empties"
+			# mark_neighbors(map, loc, type)
 	else:
 		type = "enemies"
 	# map_logger.debug("Increment_neighbors neighbors of %s with type %s" % (loc, type))
@@ -131,7 +131,7 @@ def deserializeMap(m, inputString):
 				# logger.debug("Retrieved location %s with owner %s (should be %s and %s)\n" % (loc.site.loc, loc.site.owner, loc, owner))
 				pass
 			loc.gameMap = m
-			if owner > 0:
+			if True or owner > 0:
 				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
 			if owner != 0:

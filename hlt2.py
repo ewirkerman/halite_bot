@@ -117,8 +117,8 @@ class Territory:
 		self.territory.add(location)
 		self.production += site.production
 		self.strength += site.strength
-		logger.debug("Adding %s production from %s to %s's territory - now %s" % (site.production, location, self.owner, self.production) )
-		logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
+		# logger.debug("Adding %s production from %s to %s's territory - now %s" % (site.production, location, self.owner, self.production) )
+		
 
 	def getLocations(self):
 		return self.territory
@@ -486,10 +486,16 @@ class GameMap:
 				#logger.debug("Territory Loc: %s" % loc)
 				site = loc.site
 				
-				# we can't do it during the parsing because the owners come through before the strenghts I guess?
+				# we can't do it during the parsing because the owners come through before the strenghts
+				# but this means empties don't work for neutrals because I'm not sure it's worth swinging back through all the neutrals
+				# logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
 				t.strength += site.strength
+				site.empties = [move for move in site.neutrals if not move.loc.site.strength]
+				
+				
 				#logger.debug("Friends: %s" % debug_list(site.friends))
-				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
+				logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
+				logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
 				#logger.debug("Enemies: %s" % debug_list(site.enemies))
 				if t.owner == t.map.playerTag:
 					moveset = site.friends

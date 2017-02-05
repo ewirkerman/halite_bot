@@ -45,7 +45,7 @@ def check_new_parent(child, depth):
 		pass
 		
 def breach_escape_eval(t):
-	site = t[0]
+	site = t.site
 	projected = 0
 	best = site.heap.get_best_claim()
 	if best and not best.will_move():
@@ -53,9 +53,10 @@ def breach_escape_eval(t):
 	projected += site.heap.inbound_str
 	if site.owner == 0:
 		projected += 1024
+#	logger.debug("Breach eval %s: %s" % (t.loc, projected))
 	return projected
 		
-def validate_direction(claim, parent):
+def validate_direction(claim, parent, breach):
 	# Figure out our own, then our children
 	loc = claim.loc
 	if loc.site.owner == loc.gameMap.playerTag:
@@ -93,6 +94,12 @@ def validate_direction(claim, parent):
 #			logger.debug("%s expanding off checker because it's safe to do so" % claim)
 			# loc.site.heap.filter_to_loc(parent.loc)
 			claim.site.heap.dir = claim.dir
+			return True
+			
+		elif will_move and claim.gen in [2, 3] and parent.root.is_uncapped() and parent.root.cap and not claim.root.breakthrough:
+#			logger.debug("staying off the second gen of a breakthrough at %s" % parent.root.loc)
+			# loc.site.heap.filter_to_loc(parent.loc)
+			claim.site.heap.dir = STILL
 			return True
 		
 		# Since you're internal and big enough, move to checker
@@ -172,17 +179,19 @@ def find_loc_move(loc, depth=0):
 	self.breach_str = 0
 	if self.parent_e_str:
 		self.breach_str = self.gameMap.get_friendly_strength(loc=parent.loc, dist=1, type="enemies")
-#		logger.debug( "Found breach_str of %s" % (self.breach_str))
+#		logger.debug( "Found breach_str of %s at %s (s: %s)" % (self.breach_str, parent.loc, parent.loc.site.strength))
 
 		
-	moveable_children = [child for child in children if validate_direction(child, self)]
-#	logger.debug( "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
-	best = self.get_best_children(moveable_children)
 	breach = parent.is_root() and parent.site.strength and parent.site.strength < self.breach_str
-#	logger.debug( "checking breach: P.is_root: %s\tP.str: %s\tP.breach_str: %s" % (parent.is_root(), parent.site.strength, self.breach_str) )	
+	breach = breach and not any([move.loc.site.empties for move in self.site.friends])
+#	logger.debug( "checking breach: P.is_root: %s\tP.str: %s\tP.breach_str: %s" % (parent.is_root(), parent.loc.site.strength, self.breach_str) )	
 	if breach:
 #		logger.debug("BREACH!!" )
 		pass
+	
+	moveable_children = [child for child in children if validate_direction(child, self, breach)]
+#	logger.debug( "moveable_children of %s: %s" % (loc, debug_list(moveable_children)) )	
+	best = self.get_best_children(moveable_children)
 	
 	
 	
@@ -194,9 +203,7 @@ def find_loc_move(loc, depth=0):
 		# Being in best means that you will move
 		if breach:
 #			logger.debug("BREACH child %s rejected by parent %s" % (child, self) )
-			# child.site.heap.filter_out_loc(loc)
-			# child.site.heap.dir = None
-			# check_new_parent(child, depth)
+			pass
 			
 			
 		
@@ -221,8 +228,8 @@ def find_loc_move(loc, depth=0):
 	self.site.inb_str = inb_str
 	total_str = inb_str + self.site.strength
 #	logger.debug("%s vs %s for %s overflow" % (inb_str, self.site.strength, self.loc) )
-	if breach and children:
-		biggest = max(children, key=get_claim_strength)
+	if breach and children and self.site.strength and self.site.owner == self.gameMap.playerTag:
+		biggest = min(children, key=breach_escape_eval)
 		self.site.heap.filter_to_loc(None)
 		child = biggest.create_child(util.getOppositeDir(biggest.dir))
 		biggest.activate_child(child)
@@ -235,18 +242,18 @@ def find_loc_move(loc, depth=0):
 #	logger.debug("Ending find_move_loc")
 
 def get_planned_move(loc):
-	if loc.site.heap.get_best_claim() and loc.site.owner == loc.gameMap.playerTag:
-		claim = loc.site.heap.get_best_claim()
+	claim = loc.site.heap.get_best_claim()
+	if claim and loc.site.owner == loc.gameMap.playerTag:
 		return Move(claim.loc, claim.dir)
-	else:
+	if claim and claim.gen > 0:
 		return Move(loc, STILL)
 		
 def get_loc_move(loc):
 	if loc.site.heap.dir:
-#		logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
+#		# logger.debug("%s was last assigned direction %s" % (loc, loc.site.heap.dir))
 		return Move(loc, loc.site.heap.dir)
 	else:
-#		logger.debug("%s never picked a direction, staying STILL" % (loc) )
+#		# logger.debug("%s never picked a direction, staying STILL" % (loc) )
 		return Move(loc, STILL)
 
 class ClaimHeap:
@@ -333,7 +340,7 @@ class ClaimHeap:
 		new_best = self.get_best_claim()
 		# if the best changes, then cancel the old best and issue the new best
 		if old_best is not new_best:
-#			# logger.debug("old_best was %s but new_best is %s" % (old_best, new_best))
+#			logger.debug("old_best was %s but new_best is %s" % (old_best, new_best))
 			if old_best:
 #				#logger.debug("Unspread the claim on %s from %s" % (old_best, debug_list(old_best.get_parents())))
 				# old_best.unspread()
@@ -704,12 +711,21 @@ class Claim:
 		
 		save = False
 		parent_children = {}
-#		# logger.debug("Expanding parents %s" % (debug_list(parents)))
+#		logger.debug("Expanding parents %s" % (debug_list(parents)))
 		for parent in set(parents):
+#			logger.debug("Expanding parent %s" % (parent))
 			child_gen = (parent.gen + 1)
 			if self.gameMap.gen_cap and child_gen in self.gens and self.gens[child_gen].strength>=255:
-#				logger.debug("Skipping gen because we alread have more than 255 in it")
+#				logger.debug("Skipping gen because we already have more than 255 in it")
 				continue
+			
+#			logger.debug
+			if self.is_uncapped() and self.cap and parent.gen <= self.gameMap.breakthrough_range:
+				if any([not move.loc.site.strength for move in self.site.neutrals]):
+					self.erase()
+#					logger.debug("This isn't a really a breakthrough because %s too close to an opening" % self)
+					# I check the children later
+					break
 		
 			# if not claim.is_top_claim():
 #				# logger.debug("%s was going to spread %s but it's no longer a top claim" % self)
@@ -726,6 +742,7 @@ class Claim:
 				if child_site.owner == self.gameMap.playerTag or (child_site.owner == 0 and child_site.strength == 0):
 					# if it's uncapped and checkered, then it only pushes waste_overrides
 					# if False and dir in parent.get_parent_direction() and child_site.owner == self.gameMap.playerTag:
+#					# logger.debug("neutrals of %s: %s" % (child_site.loc, debug_list(child_site.neutrals)))
 					if dir == parent.get_parent_direction():
 						# child = parent.create_child(dir)
 						# current_children.add(child)
@@ -738,7 +755,7 @@ class Claim:
 						current_children.add(child)
 						parent.activate_child(child)
 #						# logger.debug("Normal child: %s" % child)
-					
+
 			top_children = parent.get_top_children()		
 			for top_child in top_children:
 				for child in current_children:
@@ -768,9 +785,10 @@ class Claim:
 			pass
 		
 
-	def unspread(self):
-#		# #logger.debug("Uncapped so not unspreading")
-		return
+	def erase(self):
+		for child in self.active_children:
+			child.erase()
+			self.deactivate_child(child)
 		
 	def activate_child(self, child):
 #		# logger.debug("Activating %s against %s" % (child, child.site.heap.get_best_claim()) )
@@ -802,8 +820,8 @@ class Claim:
 
 		
 	def get_best_trail(self):
-		depth = min([self.gameMap.getTerritory().production ** .33, 3])
-		depth = 5
+		depth = min([self.gameMap.getTerritory().production ** .33, self.gameMap.trail_search_distance_max])
+		depth = self.gameMap.trail_search_distance_max 
 #		# logger.debug("Finding trails (p: %s) with depth %s" % (self.gameMap.getTerritory().production, depth))
 		# raise Exception("This needs to not be so strong in the early game, and also needs to offer layered pulling in the mid-game")
 		
@@ -1000,6 +1018,7 @@ class UncappedClaim(Claim):
 		self.max_gen = 0
 		self.strength = 0
 		self.production = 0
+		self.cap = 0
 		
 		if self.root is self:
 			self.gens = {}
@@ -1007,13 +1026,18 @@ class UncappedClaim(Claim):
 			# self.cost = self.site.strength or 1
 			self.cost = 1
 			self.value = self.benefit / self.cost
+			if self.site.strength:
+				self.cap = self.gameMap.get_friendly_strength(loc=self.loc, dist=self.gameMap.breakthrough_range + 1, type="enemies")
+				self.value += 1000
+				
 			if self.parent.site.owner == 0:
-				self.value *= 1+self.gameMap.num_non_friends(self.loc)
+				self.value *= 1+(self.gameMap.num_non_friends(self.loc)/10000)
 				# e_str = self.gameMap.get_enemy_strength(parent.loc, range=1)
 				e_str = self.gameMap.get_friendly_strength(loc=self.loc, dist=1, type="enemies")
 				
 				# if e_str:
 					# self.value *= 10
+					
 			
 			self.childless = set()
 			self.ancestors = 0
@@ -1024,6 +1048,8 @@ class UncappedClaim(Claim):
 			self.benefit = parent.benefit
 			self.cost = 5 + self.gen
 			self.value = self.root.value * .95**self.gen
+			if not self.root.site.strength and self.gen < self.gameMap.breakthrough_range and self.site.strength:
+				self.value+=1000
 			
 			
 			self.strength = self.site.strength
@@ -1033,6 +1059,8 @@ class UncappedClaim(Claim):
 		self.active_children = []
 		self.top_children = []
 		self.moves = None
+		self.breakthrough = False
+		self.erased = False
 #		# logger.debug("VAL:%s\t%s\t%s\t%s\t%s" % (self.is_capped(),self.benefit, self.cost, self.value, self.gen))
 		pass
 			
@@ -1078,7 +1106,7 @@ class CappedClaim(Claim):
 		self.production = 0
 		
 		if self.root is self:
-			if False and map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=5, type="enemies"):
+			if False and map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=claim.gameMap.breakthrough_range, type="enemies"):
 				# self.cap = max([min([ 254, map.get_enemy_strength(self.loc, range=1) * 2]),self.site.strength])
 				self.cap = max([min([ 254, map.get_friendly_strength(loc=self.parent.loc, dist=1, type="enemies") * 2]),self.site.strength])
 			else:
@@ -1122,6 +1150,7 @@ class CappedClaim(Claim):
 		self.still_expanding = True
 		self.moves = None
 		self.waste_override = False
+		self.erased = False
 #		# logger.debug("VAL:%s\t%s\t%s\t%s\t%s" % (self.is_capped(), self.benefit, self.cost, self.value, self.gen))
 		pass
 		

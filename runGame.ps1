@@ -10,21 +10,31 @@ if (Test-Path bot.debug) {
 
 Remove-Item stats\*.stats -Force
 $size = (20,25,30,35,40,45,50) | Get-Random
-$size = (45) | Get-Random
+$size = (20) | Get-Random
 $player_count = (2,3,4,5,6) | Get-Random
 $player_count = (2) | Get-Random
 
-$players = New-Object System.Collections.ArrayList($null)
 
 $myBot = "python bots\MyBot\MyBot.py"
 $myBot = "python MyBot.py"
-# $myBot = "python pypyBot.py"
 
+$players = New-Object System.Collections.ArrayList($null)
 $players.add($myBot)
+
+$opponents = New-Object System.Collections.ArrayList($null)
+$opponents.add("python bots\ComboBot\MyBot.py")
+# $opponents.add("python bots\BreachBot\MyBot.py")
+# $opponents.add("python bots\MyBot\MyBot.py")
+# $opponents.add("python bots\PypyBot\MyBot.py")
+
+
+
+
 
 for ($i=1; $i -lt $player_count; $i++)
 {
-  $players.add("python bots\ComboBot\MyBot.py")
+  $opponent = $opponents | Get-Random
+  $players.add($opponent)
 }
 
 if ($seed) {

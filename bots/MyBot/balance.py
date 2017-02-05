@@ -123,8 +123,14 @@ def uncapped_claim_benefit(claim):
 		damage += move.loc.site.strength
 		
 	
-	if claim.root is claim:
-		ret = (1+claim.site.production/20)*claim.gameMap.target_uncapped_value * (1 + damage/(1020*1000))
+	if claim.is_root():
+		owner_factor = (1+(len(claim.site.neutrals)+len(claim.site.enemies)*4)*1.0/100)
+		production_factor = (1+claim.site.production*1.0/200000)
+		damage_factor = (1 + damage*1.0/(1020*1000))
+#		logging.getLogger("bot").debug("owner_factor of %s: %s" % (claim.loc, owner_factor))
+#		logging.getLogger("bot").debug("production_factor of %s: %s" % (claim.loc, production_factor))
+#		logging.getLogger("bot").debug("damage_factor of %s: %s" % (claim.loc, damage_factor))
+		ret = owner_factor*damage_factor*production_factor*claim.gameMap.target_uncapped_value
 		# owner = None
 		# for move in claim.root.site.enemies:
 			# owner = move.loc.site.owner
@@ -177,13 +183,15 @@ def claim_move_conditions_parentless(claim):
 #				logging.getLogger("bot").debug("Checking for breakthrough: ms:%s\tts:%s\tmp:%s\ttp:%s" %(m.strength, t.strength, m.production, t.production))
 				if t.strength < m.strength and t.production < m.production:
 					ret = True
+					claim.root.breakthrough = True
 #					logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, claim.loc))
 				elif t.strength < m.strength or t.production < m.production:
-					local_e = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=5, type="enemies")
-					local_m = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=4, type="friends")
+					local_e = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=claim.gameMap.breakthrough_range, type="enemies")
+					local_m = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=claim.gameMap.breakthrough_range-1, type="friends")
 #					logging.getLogger("bot").debug("Checking for local breakthrough: ms:%s\tts:%s" %(local_m, local_e))
-					if local_m - parent.site.strength > local_e:
+					if local_m - parent.site.strength > local_e * 2:
 						ret = True
+						claim.root.breakthrough = True
 #						logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, parent.loc))
 					else:
 						ret = False
@@ -224,6 +232,9 @@ def send_gen_conditions(claim, gen_index = None):
 	return False	
 	
 def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
+	if claim.erased:
+		return True
+	
 	if claim.ancestors < 1:
 #		# logging.getLogger("bot").debug("%s has no ancestors" % claim)
 		return False
@@ -231,6 +242,8 @@ def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 	# raise Exception("This prevents uncapped claims from pulling onto populated neutrals")
 	if not claim.is_capped():
 #		# logging.getLogger("bot").debug("%s is not capped" % claim)
+		if claim.cap:
+			return claim.cap < claim.strength + this_gen_str
 		return False
 		
 #	# logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )

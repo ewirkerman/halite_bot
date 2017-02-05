@@ -486,16 +486,11 @@ class GameMap:
 #				#logger.debug("Territory Loc: %s" % loc)
 				site = loc.site
 				
-				# we can't do it during the parsing because the owners come through before the strenghts
-				# but this means empties don't work for neutrals because I'm not sure it's worth swinging back through all the neutrals
+				# we can't do it during the parsing because the owners come through before the strenghts I guess?
 #				# logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
 				t.strength += site.strength
-				site.empties = [move for move in site.neutrals if not move.loc.site.strength]
-				
-				
 #				#logger.debug("Friends: %s" % debug_list(site.friends))
-#				logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
-#				logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
+#				#logger.debug("Neutrals: %s" % debug_list(site.neutrals))
 #				#logger.debug("Enemies: %s" % debug_list(site.enemies))
 				if t.owner == t.map.playerTag:
 					moveset = site.friends

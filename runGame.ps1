@@ -23,7 +23,7 @@ $players.add($myBot)
 
 $opponents = New-Object System.Collections.ArrayList($null)
 $opponents.add("python bots\ComboBot\MyBot.py")
-# $opponents.add("python bots\BreachBot\MyBot.py")
+$opponents.add("python bots\BreachBot\MyBot.py")
 # $opponents.add("python bots\MyBot\MyBot.py")
 # $opponents.add("python bots\PypyBot\MyBot.py")
 

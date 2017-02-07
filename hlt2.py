@@ -2,6 +2,7 @@ import random
 import math
 import copy
 import logging
+import heapq
 from util import *
 
 
@@ -27,11 +28,14 @@ class Location:
 	def __init__(self, x=0, y=0):
 		self.x = x
 		self.y = y
+		self.site = None
 		self.N = None
 		self.E = None
 		self.S = None
 		self.W = None
 		self.hash = None
+		self.trails = []
+		self.expanding_trails = []
 	
 	def getRealCenter(self):
 		return (self.x,self.y)
@@ -51,6 +55,43 @@ class Location:
 		#for c in key:
 		#	ikey += str(ord(c))
 		#return int(ikey)
+		
+	def get_best_trail(self):
+		last_best = self.trails[0]
+	
+		# logger.debug("List of trails:")
+		# l = list(self.trails)
+		# while l:
+			# logger.debug("%s" % heapq.heappop(l))
+		
+		while (len(last_best.path[0].site.neutrals) < 3 or all([len(loc.site.neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
+			logger.debug("Eliminating %s" % last_best)
+			heapq.heappop(self.trails)
+			last_best = self.trails[0]
+		
+		if not self.trails:
+			logger.debug("Returning %s, %s remaining" % (None, len(self.trails)))
+			return None
+		logger.debug("Returning %s, %s remaining" % (last_best, len(self.trails)))
+		return last_best
+		
+	def peer_deeper(self):
+		# depth = min([self.gameMap.getTerritory().production ** .33, self.gameMap.trail_search_distance_max])
+		depth = self.gameMap.trail_search_distance_max
+		# depth = 10
+		
+		old_trails = list(self.expanding_trails)
+		# logger.debug("Expanding %s" % old_trails)
+		self.expanding_trails = []
+		for trail in old_trails:
+			if len(trail) > 1:
+				heapq.heappush(self.trails, trail)
+			if len(trail) >= depth:
+				continue
+			children = trail.get_child_trails()
+			if children:
+				self.expanding_trails.extend(children)
+		
 	
 class Site:
 	def __init__(self, owner=0, strength=0, production=0, friends = [], neutrals = [], enemies = [], loc = None):
@@ -84,6 +125,157 @@ class Site:
 		else:
 			s = "  "
 		return "%s" % (s)
+		
+class Trail:
+	def __init__(self, trail=None, new_loc=None, claim=None):
+		# assert claim is not None or (trail is not None and new_loc is not None)
+		import balance
+		self.highest_threshhold = None
+		self.path = []
+		self.claim = None
+		if claim:
+			self.claim = claim
+			new_loc = claim.loc
+			self.loc = new_loc
+			self.site = new_loc.site
+			self.benefit = balance.evalSiteProduction(self.site)
+			self.cost = balance.evalSiteStrength(self.site)
+		elif trail and new_loc:
+			self.claim = trail.claim
+			self.loc = new_loc
+			self.site = new_loc.site
+			self.path.extend(trail.path)
+			self.benefit = balance.evalSiteProduction(self.site)
+			self.cost = balance.evalSiteStrength(self.site)
+		elif new_loc:
+			self.loc = new_loc
+			self.site = new_loc.site
+			self.benefit = balance.evalSiteProduction(self.site)
+			self.cost = balance.evalSiteStrength(self.site)
+			
+		# else:
+			# raise Exception("Unable to initialize Trail with %s, %s, %s" % (claim, trail, new_loc))
+		self.path.append(new_loc)
+		self.gameMap = new_loc.gameMap
+		self.value = self.benefit * 1.0/ self.cost
+		# logger.debug("Trail %s" % self)
+		
+	
+	def get_child_trails(self):
+		# children = []
+		# for dir in CARDINALS:
+			# new_loc = self.gameMap.getLocation(self.path[-1], dir)
+			# if new_loc.site.owner == 0 and not new_loc in self.gameMap.getTerritory().fringe and not new_loc in self.path:
+				# child = Trail(trail=self, new_loc=new_loc)
+				# children.append(child)
+		return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if move.loc not in self.gameMap.getTerritory().fringe and not move.loc in self.path]
+
+	def __lt__(self, other):
+		return other.value < self.value
+		
+	def __len__(self):
+		return len(self.path)
+		
+	def __iter__(self):
+		return self.path.__iter__()
+		
+	def __str__(self):
+		return "%s\t%s" % (self.value, debug_list(self.path))
+		
+	def define_threshholds(self):
+		self.threshholds = []
+		self.threshhold_values = []
+		strength = 0
+		
+		for loc in self.path:
+			strength += loc.site.strength
+			self.threshholds.append(strength)
+			
+		benefit = 0
+		cost = 0
+		# logger.debug("Old value is %s" % self.value)
+		for i in range(len(self.path),0,-1):
+			benefit += balance.evalSiteProduction(self.path[i-1].site)
+			cost += balance.evalSiteStrength(self.path[i-1].site)
+			# logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
+			self.threshhold_values.append(benefit  * 1.0/ cost)
+			# logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
+		self.threshhold_values.reverse()
+		for i in range(len(self.threshhold_values)):
+			# logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
+			pass
+		
+	def get_value(self, strength = 0):
+		if not self.gameMap.multipull:
+			return self.value
+	
+		# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
+		for i in range(len(self.threshholds)):
+			if strength <= self.threshholds[i]:
+				# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
+				return self.threshhold_values[i]
+		return self.threshhold_values[-1]
+		
+	def check_strength_threshhold(self, base, delta):
+		# if not self.highest_threshhold:
+			# self.highest_threshhold = self.find_highest_threshhold()
+	
+		if not self.gameMap.multipull:
+			return base + delta > self.threshholds[0] or (not base and not self.threshholds[0])
+	
+		if not base and not self.threshholds[0]:
+			return True
+		
+		# let's say base+delta is over the lowest threshhold so we COULD go
+		# now we check how many turns it'd take to get to the next threshhold with only our total_production
+		# the strength we save by doing two at once is the total_production
+		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold - 1
+		
+		# let's say we decide we want to wait for the second
+		# do we wait for the third?
+		# we check how many turns it will take to get to the third threshhold with our total production
+		# the strength we save by doing two at once is the total_production * 2
+		# the strength we lose by waiting is the production of the lowest threshhold * the number of turns it takes to get to the next threshhold -2 + the second production * turns - 1
+		
+		
+		
+		potential_multis = len(self.threshholds)
+		production = self.claim.get_total_production()
+		
+		
+		
+		# the claim total production is the cost of going at a lower i * len-i
+		# the production of the ith tile is the cost of waiting to a higher i * 
+		
+		
+		first_threshhold_passed = None
+		missed_production = 0
+		for i in range(len(self.threshholds)):
+			logger.info("Is base %s under %s and base %s + delta %s over %s?" % (base, self.threshholds[i], base, delta, self.threshholds[i]))
+			
+			# You definitely do to go if you don't have enough for a threshhold
+			# either you're under the first one, or you would've decided to wait for a future one already
+			if base + delta <= self.threshholds[i]:
+				return False
+			if base < self.threshholds[i] and base + delta >= self.threshholds[i]:
+				if not first_threshhold_passed:
+					first_threshhold_passed = i
+					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
+				
+				if self.gameMap.chunkedpull:
+					if i < len(self.threshholds) - 1:
+						wait_turns = math.ceil((self.threshholds[i+1]-base-delta) * 1.0/ production)
+						missed_production += self.path[i].site.production * (wait_turns * (i-first_threshhold_passed) - 1)
+						logger.debug("There is another threshhold beyond this one but I'd need to wait %s turns more, missing %s production" % (wait_turns, missed_production))
+						move_lost_production = production*(i-first_threshhold_passed+1)
+						logger.debug("If I don't grab them together though, I'll lose %s" % (move_lost_production))
+						if missed_production > move_lost_production:
+							return True
+					else:
+						return True
+				else:
+					return True
+		return False
 
 class Territory:
 	def __init__(self, owner, map):
@@ -158,15 +350,18 @@ class GameMap:
 		self.local_maxima = []
 		self.site_production_cache = {}
 		self.best_trail_cache = {}
+		
 
-		logger.info("Recreating all the sites")
+		# logger.info("Recreating all the sites")
 		for y in range(0, self.height):
 			row = []
 			for x in range(0, self.width):
 				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
-				row.append(Site(0, 0, 0, loc = self.getLocationXY(x,y)))
+				l = self.getLocationXY(x,y)
+				row.append(Site(0, 0, 0, loc = l))
+				l.gameMap = self
 			self.contents.append(row)
-		logger.info("Recreated all the sites")
+		# logger.info("Recreated all the sites")
 	
 	def inBounds(self, l):
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
@@ -494,8 +689,8 @@ class GameMap:
 				
 				
 				#logger.debug("Friends: %s" % debug_list(site.friends))
-				logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
-				logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
+				# logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
+				# logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
 				#logger.debug("Enemies: %s" % debug_list(site.enemies))
 				if t.owner == t.map.playerTag:
 					moveset = site.friends

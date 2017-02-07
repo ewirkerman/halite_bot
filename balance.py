@@ -127,9 +127,9 @@ def uncapped_claim_benefit(claim):
 		owner_factor = (1+(len(claim.site.neutrals)+len(claim.site.enemies)*4)*1.0/100)
 		production_factor = (1+claim.site.production*1.0/200000)
 		damage_factor = (1 + damage*1.0/(1020*1000))
-		logging.getLogger("bot").debug("owner_factor of %s: %s" % (claim.loc, owner_factor))
-		logging.getLogger("bot").debug("production_factor of %s: %s" % (claim.loc, production_factor))
-		logging.getLogger("bot").debug("damage_factor of %s: %s" % (claim.loc, damage_factor))
+		# logging.getLogger("bot").debug("owner_factor of %s: %s" % (claim.loc, owner_factor))
+		# logging.getLogger("bot").debug("production_factor of %s: %s" % (claim.loc, production_factor))
+		# logging.getLogger("bot").debug("damage_factor of %s: %s" % (claim.loc, damage_factor))
 		ret = owner_factor*damage_factor*production_factor*claim.gameMap.target_uncapped_value
 		# owner = None
 		# for move in claim.root.site.enemies:

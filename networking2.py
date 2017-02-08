@@ -1,5 +1,7 @@
 from hlt2 import *
 from moves import Move
+import objgraph
+from inspect import currentframe, getframeinfo
 import socket
 import traceback
 from ctypes import *
@@ -71,7 +73,7 @@ def deserializeProductions(inputString):
 def mark_neighbors(map, loc, type):
 	for dir in CARDINALS:
 		new_loc = map.getLocation(loc, dir)
-		new_site = new_loc.site
+		new_site = new_loc.site()
 		getattr(new_site, type).append(loc.shareable_moves[dir])
 		type_list = getattr(new_site, type)
 		
@@ -81,7 +83,7 @@ def increment_neighbors(map, loc, owner):
 	# raise Exception("I should only both with these neighbors if they were either the fringe or frontier of a territory last round - that'll save a lot of time")
 	curr_site = map.getSite(loc)
 	if owner != 0:
-		# logger.debug("Found location %s with owner %s (should be %s and %s)" % (loc.site.loc, loc.site.owner, loc, owner))
+		# logger.debug("Found location %s with owner %s (should be %s and %s)" % (loc.site().loc, loc.site().owner, loc, owner))
 		pass
 	if owner > 0:
 		t = map.getTerritory(owner)
@@ -128,13 +130,13 @@ def deserializeMap(m, inputString):
 			#map_logger.debug("Retrieving Loc")
 			loc = m.getLocationXY(x,y)
 			if owner != 0:
-				# logger.debug("Retrieved location %s with owner %s (should be %s and %s)\n" % (loc.site.loc, loc.site.owner, loc, owner))
+				# logger.debug("Retrieved location %s with owner %s (should be %s and %s)\n" % (loc.site().loc, loc.site().owner, loc, owner))
 				pass
 			if True or owner > 0:
 				increment_neighbors(m, loc, owner)
 				m.updateCounts(owner, loc)
 			if owner != 0:
-				# logger.debug("Found location %s with owner %s (should be %s and %s)\n" % (loc.site.loc, loc.site.owner, loc, owner))
+				# logger.debug("Found location %s with owner %s (should be %s and %s)\n" % (loc.site().loc, loc.site().owner, loc, owner))
 				pass
 			x += 1
 			if x == m.width:
@@ -163,7 +165,7 @@ def getStringTest():
 	
 def getString():
 	line = sys.stdin.readline().rstrip('\n')
-	map_logger.error("%s" % line)
+	map_logger.debug("%s" % line)
 	return line
 
 	
@@ -175,6 +177,9 @@ def getInit(getString=getString):
 	deserializeMapSize(getString())
 	deserializeProductions(getString())
 	map_logger.debug("Finished Map init")
+	# with open("bot." + "debug", "a") as f:
+		# logger.error("Growth at %s" % getframeinfo(currentframe()).lineno)
+		# objgraph.show_growth(limit=20,file=f)
 	m = GameMap(_width, _height, playerTag = playerTag)
 	
 	map_logger.debug("Caching map relations")
@@ -187,11 +192,11 @@ def getInit(getString=getString):
 				# logger.debug("Created shareable_move from %s: %s" % (l, l.shareable_moves[dir]))
 				# raise Exception("Store all the moves and then sort them each turn")
 	
+	
 	deserializeMap(m, getString())
 	
 	# global local_maxima
 	# local_maxima = m.findLocalMaxima(production_min_set)
-	
 	return (playerTag, m)
 
 def sendInit(name):

@@ -1,6 +1,7 @@
 from util import *
 import logging
 import copy
+import weakref
 from random import shuffle
 import balance
 
@@ -78,7 +79,7 @@ def setMapChar(move_dict, move):
 	loc = move.loc
 	dirs = set(move.getDirections())
 	
-	if loc.site.owner == loc.gameMap.playerTag:
+	if loc.site().owner == loc.gameMap().playerTag:
 		move_dict[loc] = moveCharLookup(dirs)
 	else:
 		move_dict[loc] = "?"
@@ -115,7 +116,7 @@ def getMoveMap(moves = None, move_dict = None, func=setMapChar):
 			
 			#### This sets the display value of the gameMap
 			l = gameMap.getLocationXY(j,i)
-			site = l.site
+			site = l.site()
 			if l in t.fringe and site.strength == 0:
 				column = "_"
 			elif l in move_dict:
@@ -171,11 +172,9 @@ class Move:
 	def __lt__(self, other):
 		return self.loc < other.loc
 	
-gameMap = None
 class MoveFork:
 	def __init__(self, myMap, initial_moves):
-		global gameMap
-		gameMap = myMap
+		self.gameMap = weakref.ref(myMap)
 		self.move_list = []
 		self.unused_moves = set(initial_moves)
 		self.used_moves = set()
@@ -218,13 +217,13 @@ class MoveFork:
 		return best_move
 	
 	def getMoveStrength(self, move):
-		return gameMap.getDistance(move.loc,gameMap.getTerritory(gameMap.playerTag).getCenter())
+		return gameMap.getDistance(move.loc.gameMap().getTerritory(gameMap.playerTag).getCenter())
 	
 	def approve_move(self, move, approved):
 		approved.append(move)
 		site = gameMap.getSite(move.loc)
 		target = gameMap.getSite(site.loc,move.getDirections()[0])
-#		moves_logger.debug("Old pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+#		moves_logger.debug("Old pstr: src=%s%s | tar=%s%s" % (move.loc.site().projected_str,target.loc,target.projected_str) )
 		site.projected_str -= site.strength
 		if target.owner == gameMap.playerTag:
 			target.projected_str += site.strength
@@ -233,7 +232,7 @@ class MoveFork:
 			if target.projected_str < 0:
 				target.owner = gameMap.playerTag
 				target.projected_str *= -1
-#		moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+#		moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc.site().projected_str,target.loc,target.projected_str) )
 	
 	def passesMoveFilter(self, site, direction, target):
 		
@@ -275,7 +274,7 @@ class MoveFork:
 							move.setDirections([direction])
 							self.approve_move(move, approved)
 							break
-#							moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc,site.projected_str,target.loc,target.projected_str) )
+#							moves_logger.debug("New pstr: src=%s%s | tar=%s%s" % (move.loc.site().projected_str,target.loc,target.projected_str) )
 							
 					if not move_approved:
 						new_queue.append(move)
@@ -307,9 +306,9 @@ class MoveFork:
 		
 		returnString = ""
 		for move in self.move_list:
-			site = gameMap.getSite(move.loc)
+			site = self.gameMap().getSite(move.loc)
 			dir = move.getDirections()[0]
-			target_site = gameMap.getSite(move.loc, dir)
+			# target_site = gameMap.getSite(move.loc, dir)
 #			# moves_logger.debug("Sending: %s (str: %s) dir %s to %s (pstr: %s)" % (move.loc, site.strength, move.getDirections(), target_site.loc, target_site.projected_str) )
 			if dir != 0:
 				returnString += str(move.loc.x) + " " + str(move.loc.y) + " " + str(move.getDirections()[0]) + " "
@@ -321,7 +320,7 @@ class MoveFork:
 	
 	def submit_move(self, move, weak=False):
 		loc = move.loc
-		site = loc.site
+		site = loc.site()
 		# if site.strength == 0:
 			# move = Move(loc, 0)
 		

@@ -3,6 +3,7 @@ import math
 import copy
 import logging
 import heapq
+import weakref
 from util import *
 
 
@@ -50,7 +51,7 @@ class Location:
 	def __hash__(self):
 		# return hash(','.join(["%i"% self.x,"%i"% self.y]))
 		if not self.hash:
-			self.hash = self.y * self.gameMap.width + self.x
+			self.hash = self.y * self.gameMap().width + self.x
 		return self.hash
 		#ikey = ""
 		#for c in key:
@@ -65,7 +66,7 @@ class Location:
 		# while l:
 			# logger.debug("%s" % heapq.heappop(l))
 		
-		while (len(last_best.path[0].site.neutrals) < 4 or any([len(loc.site.neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
+		while (len(last_best.path[0].site().neutrals) < 4 or any([len(loc.site().neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
 			# logger.debug("Eliminating %s" % last_best)
 			heapq.heappop(self.trails)
 			last_best = self.trails[0]
@@ -77,8 +78,8 @@ class Location:
 		return last_best
 		
 	def peer_deeper(self):
-		# depth = min([self.gameMap.getTerritory().production ** .33, self.gameMap.trail_search_distance_max])
-		depth = self.gameMap.trail_search_distance_max
+		# depth = min([self.gameMap().getTerritory().production ** .33, self.gameMap().trail_search_distance_max])
+		depth = self.gameMap().trail_search_distance_max
 		# depth = 10
 		
 		old_trails = list(self.expanding_trails)
@@ -105,10 +106,11 @@ class Site:
 		self.empties = []
 		self.loc = loc
 		self.inb_str = 0
-		loc.site = self
+		loc.site = weakref.ref(self)
 		self.enemy_str = 0
 		from claim import ClaimHeap
 		self.heap = ClaimHeap(self)
+
 	
 	def valOrDot(self, value, dotValue):
 		if value == dotValue:
@@ -141,22 +143,22 @@ class Trail:
 			self.claim = claim
 			new_loc = claim.loc
 			self.loc = new_loc
-			self.site = new_loc.site
-			self.benefit = balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
-			self.cost = balance.evalSiteStrength(self.site)
+			self.site = weakref.ref(new_loc.site())
+			self.benefit = balance.evalSiteProduction(self.site()) * trail_discount_base ** len(self.path)
+			self.cost = balance.evalSiteStrength(self.site())
 		elif trail and new_loc:
 			self.claim = trail.claim
 			self.loc = new_loc
-			self.site = new_loc.site
+			self.site = weakref.ref(new_loc.site())
 			self.path.extend(trail.path)
-			self.benefit = trail.benefit + balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
-			self.cost = trail.cost + balance.evalSiteStrength(self.site)
+			self.benefit = trail.benefit + balance.evalSiteProduction(self.site()) * trail_discount_base ** len(self.path)
+			self.cost = trail.cost + balance.evalSiteStrength(self.site())
 		elif new_loc:
 			self.loc = new_loc
-			self.site = new_loc.site
-			self.benefit = balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
-			self.cost = balance.evalSiteStrength(self.site)
-			
+			self.site = weakref.ref(new_loc.site())
+			self.benefit = balance.evalSiteProduction(self.site()) * trail_discount_base ** len(self.path)
+			self.cost = balance.evalSiteStrength(self.site())
+		
 		# else:
 			# raise Exception("Unable to initialize Trail with %s, %s, %s" % (claim, trail, new_loc))
 		self.path.append(new_loc)
@@ -168,12 +170,12 @@ class Trail:
 	def get_child_trails(self):
 		# children = []
 		# for dir in CARDINALS:
-			# new_loc = self.gameMap.getLocation(self.path[-1], dir)
-			# if new_loc.site.owner == 0 and not new_loc in self.gameMap.getTerritory().fringe and not new_loc in self.path:
+			# new_loc = self.gameMap().getLocation(self.path[-1], dir)
+			# if new_loc.site().owner == 0 and not new_loc in self.gameMap().getTerritory().fringe and not new_loc in self.path:
 				# child = Trail(trail=self, new_loc=new_loc)
 				# children.append(child)
-		return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if not move.loc in self.path]
-		# return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if move.loc not in self.gameMap.getTerritory().fringe and not move.loc in self.path]
+		return [Trail(trail=self, new_loc=move.loc) for move in self.loc.site().neutrals if not move.loc in self.path]
+		# return [Trail(trail=self, new_loc=move.loc) for move in self.site().neutrals if move.loc not in self.gameMap().getTerritory().fringe and not move.loc in self.path]
 
 	def __lt__(self, other):
 		return other.value < self.value
@@ -193,7 +195,7 @@ class Trail:
 		strength = 0
 		
 		for loc in self.path:
-			strength += loc.site.strength
+			strength += loc.site().strength
 			self.threshholds.append(strength)
 			
 		benefit = 0
@@ -211,7 +213,7 @@ class Trail:
 			pass
 		
 	def get_value(self, strength = 0):
-		if not self.gameMap.multipull:
+		if not self.gameMap().multipull:
 			return self.value
 	
 		# logger.info("Found value %s at %s threshholds deep with strength %s" % (self.threshhold_values[i], i, strength))
@@ -225,7 +227,7 @@ class Trail:
 		# if not self.highest_threshhold:
 			# self.highest_threshhold = self.find_highest_threshhold()
 	
-		if not self.gameMap.multipull:
+		if not self.gameMap().multipull:
 			return base + delta > self.threshholds[0] or (not base and not self.threshholds[0])
 	
 		if not base and not self.threshholds[0]:
@@ -267,7 +269,7 @@ class Trail:
 					first_threshhold_passed = i
 					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
 				
-				if self.gameMap.chunkedpull:
+				if self.gameMap().chunkedpull:
 					if i < len(self.threshholds) - 1:
 						wait_turns = math.ceil((self.threshholds[i+1]-base-delta) * 1.0/ production)
 						missed_production += self.path[i].site.production * (wait_turns * (i-first_threshhold_passed) - 1)
@@ -290,7 +292,7 @@ class Territory:
 		self.frontier = set()
 		self.fringe = set()
 		self.spread_zone = set()
-		self.gameMap = map
+		self.gameMap = weakref.ref(map)
 		self.production = 0
 		self.strength = 0
 		self.center = None
@@ -304,13 +306,9 @@ class Territory:
 	def addFringe(self, location):
 		self.fringe.add(location)
 	
-	def addLocation(self, location):
+	def addLocation(self, site):
 		self.count += 1
-		if hasattr(location, "site"):
-			site = self.gameMap.getSite(location)
-		else:
-			site = location
-			location = site.loc
+		location = site.loc
 		self.territory.add(location)
 		self.production += site.production
 		self.strength += site.strength
@@ -319,28 +317,9 @@ class Territory:
 
 	def getLocations(self):
 		return self.territory
-
-	def getCenter(self):
-		if not self.center:
-			center_y = self.gameMap.row_counts[self.owner].index(max(self.gameMap.row_counts[self.owner]))
-			center_x = self.gameMap.col_counts[self.owner].index(max(self.gameMap.col_counts[self.owner]))
-			self.center = self.gameMap.getLocationXY(center_x, center_y)
-		return self.center
 		
 	def getFrontier(self):
 		return self.frontier
-		
-	def isCenterRowFull(self):
-		if self.fullrow == None:
-			#y = self.getCenter().y
-			self.fullcol = any( [all([l.owner == self.owner for l in self.gameMap.getRow(y)]) for y in range(self.gameMap.height)])
-		return self.fullrow
-		
-	def isCenterColumnFull(self):
-		if self.fullrow == None:
-			#x = self.getCenter().x
-			self.fullcol = any( [all([l.owner == self.owner for l in self.gameMap.getColumn(x)]) for x in range(self.gameMap.width)])
-		return self.fullcol		
 		
 class GameMap:
 	def __init__(self, width = 0, height = 0, numberOfPlayers = 0, playerTag = 0):
@@ -354,7 +333,7 @@ class GameMap:
 		self.living_players = set()
 		self.local_maxima = []
 		self.site_production_cache = {}
-		self.best_trail_cache = {}
+		# self.best_trail_cache = {}
 		
 
 		# logger.info("Recreating all the sites")
@@ -364,7 +343,7 @@ class GameMap:
 				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
 				l = self.getLocationXY(x,y)
 				row.append(Site(0, 0, 0, loc = l))
-				l.gameMap = self
+				l.gameMap = weakref.ref(self)
 			self.contents.append(row)
 		# logger.info("Recreated all the sites")
 	
@@ -372,8 +351,8 @@ class GameMap:
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
 		
 	def num_non_friends(self, loc):
-		# logger.debug("Found %s non_friends" % (len(loc.site.empties) + len(loc.site.enemies)) )
-		return len(loc.site.empties) + len(loc.site.enemies)
+		# logger.debug("Found %s non_friends" % (len(loc.site().empties) + len(loc.site().enemies)) )
+		return len(loc.site().empties) + len(loc.site().enemies)
 	
 	def updateCounts(self, owner, loc):
 		y = loc.y
@@ -511,14 +490,14 @@ class GameMap:
 				else:
 					combos = ((dx, dy) for dy in range(-n, n+1) for dx in range(-n, n+1) if abs(dx) + abs(dy) <= n)
 					neighbor_range_cache[loc][n] = [self.getLocationXY(loc.x+dx, loc.y+dy) for dx, dy in combos if include_self or dx or dy]
-		return [loc.site for loc in neighbor_range_cache[loc][n]]
+		return [loc.site() for loc in neighbor_range_cache[loc][n]]
 		
 	def getSite(self, l, direction = STILL):
 		#logger.debug("getSite")
 		if not direction:
-			return l.site
+			return l.site()
 		l = self.getLocation(l, direction)
-		return l.site
+		return l.site()
 	
 	def getTerritory(self, owner = None):
 		if owner is None:
@@ -575,14 +554,14 @@ class GameMap:
 		curr = [loc]
 		max_damage = 256
 		if damage_dealable:
-			max_damage = loc.site.strength
+			max_damage = loc.site().strength
 		while curr and dist:
 			# logger.debug("Checking dist %s" % dist)
 			dist -= 1
 			next = []
 			for l in curr:
-				type_list = getattr(l.site, type)
-				sites = [move.loc.site for move in type_list]
+				type_list = getattr(l.site(), type)
+				sites = [move.loc.site() for move in type_list]
 				if sites:
 					# logger.debug("Found %s sites: %s" % (type,debug_list([site.loc for site in sites])))
 					pass
@@ -625,7 +604,7 @@ class GameMap:
 	#			spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
 	#			for spread_loc in spread_locs:
 	#				next_wave.append(spread_loc)
-	#			if all([spread_loc.site.production <= loc.site.production for spread_loc in spread_locs]):
+	#			if all([spread_loc.site().production <= loc.site().production for spread_loc in spread_locs]):
 	#				self.local_maxima.append(loc)
 	#		already_waved.extend(this_wave)
 	#		this_wave = next_wave
@@ -645,13 +624,13 @@ class GameMap:
 					for loc in next_set:
 						for neighbor in [self.getLocation(loc, d) for d in CARDINALS]:
 
-							if neighbor.site.production > loc.site.production:
+							if neighbor.site.production > loc.site().production:
 								if not spoiled:
 									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
 									spoiled = True
 							elif neighbor in used_tiles or neighbor in this_set:
 								continue
-							elif neighbor.site.production == loc.site.production:
+							elif neighbor.site.production == loc.site().production:
 								# logger.debug("Spreading to: %s" % neighbor)
 								spread_set.add(neighbor)
 					this_set.update(spread_set)
@@ -672,7 +651,7 @@ class GameMap:
 		
 		
 	def setupFringeLoc(self, loc):
-		site = loc.site
+		site = loc.site()
 		site.local_production = site.production
 		site.local_strength = site.production
 		count = 1
@@ -689,20 +668,20 @@ class GameMap:
 		for t in self.getTerritories():
 			for loc in t.territory:
 				#logger.debug("Territory Loc: %s" % loc)
-				site = loc.site
+				site = loc.site()
 				
 				# we can't do it during the parsing because the owners come through before the strenghts
 				# but this means empties don't work for neutrals because I'm not sure it's worth swinging back through all the neutrals
 				# logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
 				t.strength += site.strength
-				site.empties = [move for move in site.neutrals if not move.loc.site.strength]
+				site.empties = [move for move in site.neutrals if not move.loc.site().strength]
 				
 				
 				#logger.debug("Friends: %s" % debug_list(site.friends))
 				# logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
 				# logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
 				#logger.debug("Enemies: %s" % debug_list(site.enemies))
-				if t.owner == t.gameMap.playerTag:
+				if t.owner == t.gameMap().playerTag:
 					moveset = site.friends
 				else:
 					moveset = site.enemies

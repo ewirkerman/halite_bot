@@ -9,14 +9,14 @@ def evaluateMapSite(myMap):
 	return evaluateSite
 	
 def evalSiteProduction(site, claim = None):
-	if not site.loc in site.loc.gameMap.site_production_cache:
+	if not site.loc in site.loc.gameMap().site_production_cache:
 		p = site.production
 		if site.enemies:
-			p += sum([min([move.loc.site.strength, site.strength]) for move in site.enemies])
-		site.loc.gameMap.site_production_cache[site.loc] = p
+			p += sum([min([move.loc.site().strength, site.strength]) for move in site.enemies])
+		site.loc.gameMap().site_production_cache[site.loc] = p
 		
-	# logging.getLogger("bot").debug("evalSiteProduction = %s" % site.loc.gameMap.site_production_cache[site.loc])
-	return site.loc.gameMap.site_production_cache[site.loc]
+	# logging.getLogger("bot").debug("evalSiteProduction = %s" % site.loc.gameMap().site_production_cache[site.loc])
+	return site.loc.gameMap().site_production_cache[site.loc]
 	
 def evalSiteStrength(site):
 	# should cache the answer of this
@@ -36,19 +36,20 @@ def evaluate_claim_combo(claim_combo):
 	loss = 0
 	p_loss = 0
 	for claim in claim_combo:
-		strength += claim.site.strength
-		if claim.site.strength + claim.site.production > 255:
-			p_loss -= claim.site.strength + claim.site.production - 255
-		p_loss += claim.site.production
+		site = claim.site()
+		strength += site.strength
+		if site.strength + site.production > 255:
+			p_loss -= site.strength + site.production - 255
+		p_loss += site.production
 		
-	if claim_combo.parent.site.owner == 0:
-		strength -= claim_combo.parent.site.strength
+	if claim_combo.parent.site().owner == 0:
+		strength -= claim_combo.parent.site().strength
 		#logging.getLogger("bot").debug("root strength=%s"% strength)
 	else:
 	
 		# If the parent isn't moving, add its strength
-		parent_still_str = claim_combo.parent.site.strength + claim_combo.parent.site.production
-		if claim_combo.parent.site.heap.dir:
+		parent_still_str = claim_combo.parent.site().strength + claim_combo.parent.site().production
+		if claim_combo.parent.site().heap.dir:
 			# logging.getLogger("bot").debug("Combo parent %s is moving out of the way" % claim_combo.parent)
 			pass
 		elif strength + parent_still_str < 255:
@@ -89,12 +90,12 @@ def evaluate_claim_combo(claim_combo):
 		
 		# if you don't have enough strength to take a strong neutral, this isn't a good combo
 		# reminder that we subtracted the neutral's strength from "strength" to start
-		if claim_combo.parent.site.strength > 1 and strength < 1:
+		if claim_combo.parent.site().strength > 1 and strength < 1:
 			# logging.getLogger("bot").debug("Not enough strength to take the neutral with combo: %s" % debug_list(claim_combo.claims))
 			strength += 1024
 		
 		#any claim combo that doesn't have at least one moving to a 0 square is bad
-		elif claim_combo.parent.site.strength < 1 and len(claim_combo) != 1:
+		elif claim_combo.parent.site().strength < 1 and len(claim_combo) != 1:
 			# logging.getLogger("bot").debug("Wrong number for taking an empty: %s" % debug_list(claim_combo.claims))
 			strength += 1024
 			
@@ -118,26 +119,27 @@ def strength_limit(site):
 	
 def uncapped_claim_benefit(claim):
 	damage = 0
-	for move in claim.site.enemies:
-		site = move.loc.site
-		damage += move.loc.site.strength
+	site = claim.site()
+	for move in site.enemies:
+		site = move.loc.site()
+		damage += move.loc.site().strength
 		
 	
 	if claim.is_root():
-		owner_factor = (1+(len(claim.site.neutrals)+len(claim.site.enemies)*4)*1.0/100)
-		production_factor = (1+claim.site.production*1.0/200000)
+		owner_factor = (1+(len(site.neutrals)+len(site.enemies)*4)*1.0/100)
+		production_factor = (1+site.production*1.0/200000)
 		damage_factor = (1 + damage*1.0/(1020*1000))
 		# logging.getLogger("bot").debug("owner_factor of %s: %s" % (claim.loc, owner_factor))
 		# logging.getLogger("bot").debug("production_factor of %s: %s" % (claim.loc, production_factor))
 		# logging.getLogger("bot").debug("damage_factor of %s: %s" % (claim.loc, damage_factor))
-		ret = owner_factor*damage_factor*production_factor*claim.gameMap.target_uncapped_value
+		ret = owner_factor*damage_factor*production_factor*claim.gameMap().target_uncapped_value
 		# owner = None
-		# for move in claim.root.site.enemies:
-			# owner = move.loc.site.owner
+		# for move in claim.root.site().enemies:
+			# owner = move.loc.site().owner
 			# break
 		
-		# m = claim.gameMap.getTerritory() 
-		# t = claim.gameMap.getTerritory(owner) 
+		# m = claim.gameMap().getTerritory() 
+		# t = claim.gameMap().getTerritory(owner) 
 		# if t.strength < m.strength or t.production < m.production:
 			# ret *= 2
 		return ret
@@ -155,13 +157,13 @@ def claim_move_conditions(claim, parent = None):
 	return claim_move_conditions_parentless(claim)
 
 def claim_move_conditions_parentless(claim):
-	if claim.loc.site.heap.dir:
+	if claim.loc.site().heap.dir:
 		return True
-	
+	site = claim.site()
 	enemy_str = 0
 	parent = claim.get_parent()
 	# Never move a tile you don't own
-	if claim.site.owner != claim.gameMap.playerTag:
+	if site.owner != claim.gameMap().playerTag:
 		ret = False
 
 	elif claim.root.is_capped():
@@ -170,26 +172,26 @@ def claim_move_conditions_parentless(claim):
 		
 		
 	else: # UNCAPPED
-		if claim.gen == 1 and claim.root.site.strength > 0:
-			if claim.gameMap.breakthrough and claim.site.strength > parent.site.strength:
+		if claim.gen == 1 and claim.root.site().strength > 0:
+			if claim.gameMap().breakthrough and site.strength > parent.site().strength:
 			
 				owner = None
-				for move in parent.site.enemies:
-					owner = move.loc.site.owner
+				for move in parent.site().enemies:
+					owner = move.loc.site().owner
 					break
 				
-				m = claim.gameMap.getTerritory() 
-				t = claim.gameMap.getTerritory(owner) 
+				m = claim.gameMap().getTerritory() 
+				t = claim.gameMap().getTerritory(owner) 
 				logging.getLogger("bot").debug("Checking for breakthrough: ms:%s\tts:%s\tmp:%s\ttp:%s" %(m.strength, t.strength, m.production, t.production))
 				if t.strength < m.strength and t.production < m.production:
 					ret = True
 					claim.root.breakthrough = True
 					logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, claim.loc))
 				elif t.strength < m.strength or t.production < m.production:
-					local_e = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=claim.gameMap.breakthrough_range, type="enemies")
-					local_m = claim.gameMap.get_friendly_strength(loc=parent.loc, dist=claim.gameMap.breakthrough_range-1, type="friends")
+					local_e = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_range, type="enemies")
+					local_m = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_range-1, type="friends")
 					logging.getLogger("bot").debug("Checking for local breakthrough: ms:%s\tts:%s" %(local_m, local_e))
-					if local_m - parent.site.strength > local_e * 2:
+					if local_m - parent.site().strength > local_e * 2:
 						ret = True
 						claim.root.breakthrough = True
 						logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, parent.loc))
@@ -205,7 +207,7 @@ def claim_move_conditions_parentless(claim):
 				ret = False
 		else:
 			# This I feel is a hack because I should just be able to count the incoming strength and beat it
-			# ret = claim.site.strength > claim.site.production*7
+			# ret = claim.site().strength > claim.site().production*7
 			ret = True
 
 	# logging.getLogger("bot").debug("Will %s (parent: %s) move (e_str = %s)? %s" % (claim, parent, enemy_str, ret) )
@@ -213,7 +215,7 @@ def claim_move_conditions_parentless(claim):
 	# Uncapped requirement for MOVE
 
 def send_gen_conditions(claim, gen_index = None):
-	if not claim.gameMap.multipull:
+	if not claim.gameMap().multipull:
 		return claim.gen == claim.root.max_gen and claim_complete_conditions(claim.root)
 
 	gen = claim.root.gens[gen_index]
@@ -247,7 +249,7 @@ def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 		return False
 		
 	# logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )
-	if claim.gameMap.multipull and claim.strength + this_gen_str > claim.trail.threshholds[-1]: 
+	if claim.gameMap().multipull and claim.strength + this_gen_str > claim.trail.threshholds[-1]: 
 		return True
 	elif claim.strength + this_gen_str > claim.cap: 
 		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )

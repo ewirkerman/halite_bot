@@ -1,5 +1,6 @@
 import sys
 import os
+import gc
 sys.path = sys.path + [os.path.dirname(os.path.realpath(__file__))]
 
 from hlt2 import *
@@ -7,6 +8,7 @@ from networking2 import *
 from moves import *
 import logging
 import time
+import objgraph
 from math import pi
 import cProfile
 import pstats
@@ -110,22 +112,21 @@ def take_turn(gameMap):
 
 	####### Seed the location Trail
 	if gameMap.turnCounter < 1:
-		# logger.info("Recreating all the sites")
 		for y in range(gameMap.height):
 			for x in range(gameMap.width):
 				l = gameMap.getLocationXY(x,y)
 				t = Trail(new_loc=l)
 				l.expanding_trails = [t]
 				l.trails = [t]
-
+	
 
 		
 	######################################## BOT OPTIONS
 	gameMap.multipull = False
 	gameMap.chunkedpull = gameMap.multipull and True
 	gameMap.breakthrough = True
-	gameMap.breakthrough_range = 3
-	gameMap.trail_search_distance_max = 6
+	gameMap.breakthrough_range = 5
+	gameMap.trail_search_distance_max = 7
 	gameMap.gen_cap = False
 	########################################
 		
@@ -139,7 +140,6 @@ def take_turn(gameMap):
 	center = t.getCenter()
 	
 	mf = MoveFork(gameMap, t.territory)
-	
 	
 
 	######## Root Claim Generation
@@ -176,21 +176,31 @@ def take_turn(gameMap):
 	
 	all_capped_claims = [claim for claim in all_capped_claims if claim.value > 0]
 	
+	logger.error("****** CLAIM DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
-	
+	min_time = 100000000000
+	max_time = 0
 	####### Trail depth expansion
 	for claim in all_capped_claims:
-#		logger.debug("Peering into %s's expanding_trails: %s" % (claim.loc,claim.loc.expanding_trails))
+#		# logger.debug("Peering into %s's expanding_trails: %s" % (claim.loc,claim.loc.expanding_trails))
 		while claim.loc.expanding_trails:
+			start_peer = timer()
 			claim.loc.peer_deeper()
+			peer_time = timer() - start_peer
+			min_time = min([peer_time, min_time])
+			max_time = max([peer_time, max_time])
+				
 #		# logger.debug("Made trail of length %s" % len(claim.loc.get_best_trail()))
 		claim.trail = claim.loc.get_best_trail()
+#		# logger.debug("Best trail for %s is %s" % (claim.loc, claim.trail))
 		claim.recalc_value()
 	
 	# while any([claim.expanding_trails for claim in all_capped_claims]):
 		# [claim.peer_deeper() for claim in all_capped_claims if claim.expanding_trails]
 	
+	logger.error("min_time = %s, max_time = %s" % (min_time, max_time))
 	
+	logger.error("****** TRAIL DEPTH %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
 	####### Natural separation if there are no outside threats
 	all_uncapped_claims = [claim for claim in all_uncapped_claims if claim.value > 0]
@@ -199,7 +209,6 @@ def take_turn(gameMap):
 			uc_claim = UncappedClaim(gameMap, claim.loc)
 			uc_claim.value = .0000001
 			all_uncapped_claims.append(uc_claim)
-	
 	
 	
 	
@@ -231,8 +240,28 @@ def take_turn(gameMap):
 			# logger.info("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
 #	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.fringe, gameMap, get_planned_move))))
 
+	logger.error("****** SPREAD DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
+	# ###### Try getting rid of bad unfinished claims
+	# base = list(all_capped_claims)
+	# base.sort(key=lambda c: c.value)
 	
+	# curr = list(base)
+	# failsafe = 30
+	# while not all([balance.claim_complete_conditions(root) for root in curr]) and failsafe:
+		# failsafe -= 1
+		# erased = False
+		# curr = [c for c in curr if not balance.claim_complete_conditions(claim)]
+		# for claim in curr:
+			# if not balance.claim_complete_conditions(claim):
+				# if not erased:
+#					# logger.debug("Erased the weakest claim %s" % claim)
+					# claim.erase()
+					# erased = True
+				# else:
+#					# logger.debug("Spread the claim %s" % claim)
+					# claim.spread()
+		
 	
 	
 	
@@ -243,7 +272,7 @@ def take_turn(gameMap):
 		# for gen in root.gens.values():
 			# for claim in gen.claims:
 				# move_dict[claim.loc] = "%s%s" % ("S^>v<"[claim.get_parent_direction()],int(claim.value*1000))
-#		# logger.debug("root map %s %s:%s" % (turnCounter, root.loc, root.max_gen and getMoveMap(move_dict = move_dict) or "None"))
+		# logger.error("root map %s %s:%s" % (turnCounter, root.loc, root.max_gen and getMoveMap(move_dict = move_dict) or "None"))
 		# if root.max_gen:
 			# pass
 		
@@ -257,6 +286,7 @@ def take_turn(gameMap):
 	layered_iteration(t.fringe, gameMap, find_loc_move, sort_func = gameMap.num_non_friends, limit=True)
 	moves = layered_iteration(t.frontier, gameMap, get_loc_move)
 	
+	logger.error("****** FILTER DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
 	# # showing inbound strength
 	
@@ -266,65 +296,68 @@ def take_turn(gameMap):
 	
 #	logger.debug("Moves map %s: %s" % (turnCounter, getMoveMap(moves)))
 	
+	del gameMap
 	
-	
-	
-	# if turnCounter == 20:
-		# raise Exception("Test Frame Ended")
+	if turnCounter == 20:
+		raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
 	mf.output_all_moves()
 	
-gameMap = None
 def main():
 	
 	global turnCounter
-	global gameMap
 	
 	turnCounter += 1
 #	logger.debug("****** PREP TURN %d ******" % turnCounter)
 	test_frame = None
-	# test_frame = "1 2 1 0 2 1 5 0 11 2 3 0 2 1 7 0 7 2 4 0 3 1 6 0 3 2 2 0 2 2 4 0 2 1 7 0 3 2 2 0 2 2 3 0 5 1 2 0 1 1 2 0 2 2 3 0 2 2 2 0 10 1 1 0 1 2 5 0 1 2 2 0 11 1 6 0 2 2 2 0 10 1 6 0 1 2 3 0 9 1 6 0 2 2 3 0 9 1 6 0 1 2 2 0 9 1 1 0 1 1 5 0 2 2 1 0 1 1 1 0 2 1 2 0 3 1 6 0 3 2 4 0 2 1 2 0 3 1 6 0 4 2 3 0 2 1 2 0 3 1 6 0 4 2 4 0 1 1 7 0 1 2 2 0 5 2 3 0 1 2 6 0 11 2 1 0 2 2 6 0 14 2 6 0 12 2 1 0 1 2 6 0 11 2 1 0 1 2 8 0 10 2 1 0 4 87 9 6 86 74 81 88 78 4 6 0 159 7 4 0 3 6 12 6 112 119 103 6 8 46 63 65 60 80 123 114 8 15 0 94 6 8 4 72 180 172 133 16 15 18 119 121 110 142 202 186 5 0 55 128 124 24 0 119 186 160 122 25 4 22 214 202 161 175 213 185 0 6 0 125 121 18 105 140 135 119 5 5 35 3 6 189 135 24 143 116 159 0 109 125 131 14 7 106 83 3 58 28 27 3 3 3 6 14 16 61 40 103 133 152 161 85 0 56 0 64 0 109 38 122 17 61 4 12 6 16 81 117 157 181 172 75 132 4 0 84 36 5 158 7 30 11 21 4 3 14 116 140 174 181 147 61 82 40 119 125 0 18 8 48 10 199 6 24 16 121 122 129 173 170 115 7 0 55 99 101 23 5 18 7 179 230 19 95 18 124 130 118 138 150 110 255 51 61 3 0 37 0 3 58 250 134 34 106 6 78 88 81 74 86 3 0 87 12 72 33 4 113 96 9 0 0 114 123 80 60 65 63 8 6 4 103 119 112 119 57 0 124 128 6 90 116 186 202 142 110 121 119 27 49 0 122 172 180 140 21 40 121 125 3 254 69 185 213 175 161 202 214 0 8 5 0 160 186 106 0 73 131 125 109 0 0 116 143 14 135 189 4 3 12 10 5 119 135 56 0 0 161 152 133 103 0 0 6 49 113 0 3 6 18 15 0 78 83 0 95 75 172 181 157 117 81 31 4 6 4 100 12 91 0 95 45 167 2 20 10 61 147 181 174 140 116 0 15 24 21 0 30 0 6 20 24 0 12 55 21 48 115 170 173 129 122 255 0 12 30 30 40 8 32 87 0 2 119 14 51 65 110 150 138 118 130 124 3 6 12 32 20 42 18 0 3 6 99 "
-	oldGameMap = gameMap
+	# test_frame = "625 0 1 1 1249 0 1 2 624 0 136 163 158 131 104 102 118 133 133 127 111 102 100 96 89 87 100 131 150 128 79 43 29 27 28 31 33 39 54 73 82 75 60 50 42 31 26 30 42 51 52 49 43 37 34 34 41 53 68 95 108 130 128 111 97 99 108 113 110 104 91 88 96 103 103 102 112 134 147 126 81 49 39 40 43 43 40 41 52 69 79 74 61 52 44 35 30 33 41 47 47 44 39 36 36 37 40 46 55 76 81 98 100 94 93 101 103 98 91 83 71 73 94 118 127 125 125 131 133 114 79 58 55 62 67 64 51 42 46 58 66 65 59 53 46 40 37 37 39 40 40 38 37 38 42 44 43 40 43 57 64 80 86 88 101 117 118 106 98 87 70 70 93 124 137 135 126 121 115 100 80 70 73 81 86 80 59 41 37 43 50 51 50 47 42 38 37 37 38 38 37 36 38 43 48 49 44 37 36 45 57 75 87 98 121 146 145 126 112 100 80 73 85 106 117 118 113 106 97 86 77 76 80 86 90 84 59 37 31 35 39 40 38 36 33 30 30 32 36 39 38 37 40 43 45 43 38 32 32 40 63 88 106 120 145 167 159 128 107 95 79 70 71 78 85 90 90 84 75 66 63 65 69 72 74 71 53 37 33 37 41 40 36 33 30 28 26 27 32 36 36 36 38 40 39 35 32 32 35 44 71 97 116 127 144 155 140 106 83 73 64 57 55 55 58 65 67 61 52 47 46 48 50 49 50 51 46 43 45 52 58 56 48 43 40 36 30 27 28 30 31 31 33 35 33 31 33 39 45 54 61 73 84 88 95 98 86 64 49 44 39 35 34 34 38 44 47 42 37 35 36 37 36 33 34 42 53 62 68 74 80 77 65 57 53 46 37 30 28 27 26 24 25 26 27 29 36 48 56 57 48 47 48 47 47 47 41 32 26 24 21 19 20 22 26 32 35 33 31 31 31 29 27 25 29 48 75 95 96 91 90 83 69 60 57 51 42 36 32 29 25 21 20 20 22 27 37 53 62 57 43 36 33 29 26 24 22 20 18 16 15 15 16 17 21 26 30 31 31 30 28 25 23 23 31 57 93 116 109 89 77 69 59 55 54 51 47 44 38 33 27 22 19 19 20 26 38 55 64 57 39 32 29 25 21 19 18 16 15 13 14 15 16 17 19 23 28 33 35 34 32 30 28 29 36 56 84 98 88 68 58 54 54 57 59 57 56 55 46 36 28 22 19 18 20 25 35 49 57 51 34 30 28 26 22 21 19 17 14 14 15 17 18 19 21 24 31 40 46 47 47 47 44 42 43 50 60 64 57 48 46 50 56 63 65 62 62 61 49 37 28 22 18 19 23 28 34 42 46 42 33 31 32 32 31 30 28 22 18 17 20 22 23 26 28 32 42 57 69 74 75 74 68 60 54 50 46 41 36 34 37 43 51 58 57 52 50 49 40 32 27 22 19 22 28 32 35 40 41 38 37 38 43 47 50 50 45 35 27 24 26 29 34 43 49 55 67 86 101 105 105 102 92 79 69 57 42 30 25 24 28 36 44 49 45 37 32 30 26 23 22 19 19 22 26 29 33 37 40 39 47 55 64 70 76 76 66 50 37 33 35 42 55 75 86 93 103 116 122 118 113 109 101 89 79 65 44 29 22 20 23 29 36 39 34 26 22 20 19 19 19 19 19 19 20 22 26 33 39 42 60 75 86 91 96 96 84 64 46 39 42 53 76 107 124 130 136 136 127 112 102 98 94 90 88 74 51 33 23 19 20 23 25 25 23 20 21 21 22 23 24 23 21 19 16 17 22 32 41 49 66 80 88 90 93 94 84 65 47 39 40 51 78 111 128 132 135 131 118 103 94 93 92 95 98 85 59 37 24 18 15 15 15 15 16 20 25 29 32 33 31 27 22 18 15 16 23 35 45 53 62 70 72 69 70 70 66 55 45 40 38 45 65 89 97 99 105 111 109 101 96 97 95 99 103 88 60 36 23 15 11 10 10 11 14 20 29 36 41 41 36 27 20 16 14 16 25 37 46 53 57 63 63 58 53 51 52 53 52 51 46 47 58 68 66 65 75 90 98 96 91 90 87 89 90 74 49 29 19 13 9 8 8 9 14 21 29 36 41 39 32 23 17 13 13 15 22 32 40 48 61 69 71 66 56 48 51 61 66 68 60 55 59 58 48 44 51 64 72 70 65 64 64 70 71 56 37 23 17 13 11 10 9 11 15 22 28 33 34 31 25 17 13 11 11 14 19 26 33 45 83 97 100 93 73 57 59 73 81 81 68 59 59 53 42 35 37 46 52 50 44 43 47 54 56 46 32 24 20 19 19 18 16 16 19 25 29 29 27 23 18 14 11 9 11 14 18 23 33 54 116 137 139 126 95 70 70 87 96 93 74 58 54 50 42 34 34 41 46 44 38 35 39 47 49 43 36 32 30 30 31 29 26 23 25 30 31 27 21 16 14 12 10 9 11 15 19 23 37 72 124 150 152 137 102 74 75 94 105 104 82 60 51 47 44 40 40 44 47 43 36 33 39 47 51 48 45 42 40 40 40 38 32 28 29 34 35 27 17 12 11 11 10 9 10 14 18 22 37 75 102 127 132 119 89 68 72 91 104 107 88 65 53 48 48 52 54 54 50 42 34 32 39 49 52 50 47 45 43 41 41 38 32 27 29 35 35 26 15 11 12 12 10 8 8 11 14 17 29 60 75 97 102 92 70 57 65 83 96 101 86 67 57 51 55 65 70 65 54 42 33 32 39 48 50 45 42 39 36 35 35 34 28 23 25 31 31 22 14 12 14 15 12 8 7 8 11 13 21 43 75 97 102 92 70 57 65 83 96 101 86 67 57 51 55 65 70 65 54 42 33 32 39 48 50 45 42 39 36 35 35 34 28 23 25 31 31 22 14 12 14 15 12 8 7 8 11 13 21 43 102 127 132 119 89 68 72 91 104 107 88 65 53 48 48 52 54 54 50 42 34 32 39 49 52 50 47 45 43 41 41 38 32 27 29 35 35 26 15 11 12 12 10 8 8 11 14 17 29 60 124 150 152 137 102 74 75 94 105 104 82 60 51 47 44 40 40 44 47 43 36 33 39 47 51 48 45 42 40 40 40 38 32 28 29 34 35 27 17 12 11 11 10 9 10 14 18 22 37 75 116 137 139 126 95 70 70 87 96 93 74 58 54 50 42 34 34 41 46 44 38 35 39 47 49 43 36 32 30 30 31 29 26 23 25 30 31 27 21 16 14 12 10 9 11 15 19 23 37 72 83 97 100 93 73 57 59 73 81 81 68 59 59 53 42 35 37 46 52 50 44 43 47 54 56 46 32 24 20 19 19 18 16 16 19 25 29 29 27 23 18 14 11 9 11 14 18 23 33 54 61 69 71 66 56 48 51 61 66 68 60 55 59 58 48 44 51 64 72 70 65 64 64 70 71 56 37 23 17 13 11 10 9 11 15 22 28 33 34 31 25 17 13 11 11 14 19 26 33 45 57 63 63 58 53 51 52 53 52 51 46 47 58 68 66 65 75 90 98 96 91 90 87 89 90 74 49 29 19 13 9 8 8 9 14 21 29 36 41 39 32 23 17 13 13 15 22 32 40 48 62 70 72 69 70 70 66 55 45 40 38 45 65 89 97 99 105 111 109 101 96 97 95 99 103 88 60 36 23 15 11 10 10 11 14 20 29 36 41 41 36 27 20 16 14 16 25 37 46 53 66 80 88 90 93 94 84 65 47 39 40 51 78 111 128 132 135 131 118 103 94 93 92 95 98 85 59 37 24 18 15 15 15 15 16 20 25 29 32 33 31 27 22 18 15 16 23 35 45 53 60 75 86 91 96 96 84 64 46 39 42 53 76 107 124 130 136 136 127 112 102 98 94 90 88 74 51 33 23 19 20 23 25 25 23 20 21 21 22 23 24 23 21 19 16 17 22 32 41 49 47 55 64 70 76 76 66 50 37 33 35 42 55 75 86 93 103 116 122 118 113 109 101 89 79 65 44 29 22 20 23 29 36 39 34 26 22 20 19 19 19 19 19 19 20 22 26 33 39 42 37 38 43 47 50 50 45 35 27 24 26 29 34 43 49 55 67 86 101 105 105 102 92 79 69 57 42 30 25 24 28 36 44 49 45 37 32 30 26 23 22 19 19 22 26 29 33 37 40 39 33 31 32 32 31 30 28 22 18 17 20 22 23 26 28 32 42 57 69 74 75 74 68 60 54 50 46 41 36 34 37 43 51 58 57 52 50 49 40 32 27 22 19 22 28 32 35 40 41 38 34 30 28 26 22 21 19 17 14 14 15 17 18 19 21 24 31 40 46 47 47 47 44 42 43 50 60 64 57 48 46 50 56 63 65 62 62 61 49 37 28 22 18 19 23 28 34 42 46 42 39 32 29 25 21 19 18 16 15 13 14 15 16 17 19 23 28 33 35 34 32 30 28 29 36 56 84 98 88 68 58 54 54 57 59 57 56 55 46 36 28 22 19 18 20 25 35 49 57 51 43 36 33 29 26 24 22 20 18 16 15 15 16 17 21 26 30 31 31 30 28 25 23 23 31 57 93 116 109 89 77 69 59 55 54 51 47 44 38 33 27 22 19 19 20 26 38 55 64 57 48 47 48 47 47 47 41 32 26 24 21 19 20 22 26 32 35 33 31 31 31 29 27 25 29 48 75 95 96 91 90 83 69 60 57 51 42 36 32 29 25 21 20 20 22 27 37 53 62 57 61 73 84 88 95 98 86 64 49 44 39 35 34 34 38 44 47 42 37 35 36 37 36 33 34 42 53 62 68 74 80 77 65 57 53 46 37 30 28 27 26 24 25 26 27 29 36 48 56 57 71 97 116 127 144 155 140 106 83 73 64 57 55 55 58 65 67 61 52 47 46 48 50 49 50 51 46 43 45 52 58 56 48 43 40 36 30 27 28 30 31 31 33 35 33 31 33 39 45 54 63 88 106 120 145 167 159 128 107 95 79 70 71 78 85 90 90 84 75 66 63 65 69 72 74 71 53 37 33 37 41 40 36 33 30 28 26 27 32 36 36 36 38 40 39 35 32 32 35 44 57 75 87 98 121 146 145 126 112 100 80 73 85 106 117 118 113 106 97 86 77 76 80 86 90 84 59 37 31 35 39 40 38 36 33 30 30 32 36 39 38 37 40 43 45 43 38 32 32 40 64 80 86 88 101 117 118 106 98 87 70 70 93 124 137 135 126 121 115 100 80 70 73 81 86 80 59 41 37 43 50 51 50 47 42 38 37 37 38 38 37 36 38 43 48 49 44 37 36 45 81 98 100 94 93 101 103 98 91 83 71 73 94 118 127 125 125 131 133 114 79 58 55 62 67 64 51 42 46 58 66 65 59 53 46 40 37 37 39 40 40 38 37 38 42 44 43 40 43 57 108 130 128 111 97 99 108 113 110 104 91 88 96 103 103 102 112 134 147 126 81 49 39 40 43 43 40 41 52 69 79 74 61 52 44 35 30 33 41 47 47 44 39 36 36 37 40 46 55 76 136 163 158 131 104 102 118 133 133 127 111 102 100 96 89 87 100 131 150 128 79 43 29 27 28 31 33 39 54 73 82 75 60 50 42 31 26 30 42 51 52 49 43 37 34 34 41 53 68 95 "
+	with open(os.devnull, "a") as f:
+		objgraph.show_growth(file=f)
 	gameMap = getFrame(test_frame)
-	gameMap.oldGameMap = oldGameMap or gameMap
+	with open("bot." + "debug", "a") as f:
+		objgraph.show_growth(limit=20,file=f)
 	clock = timer()
 	gameMap.clock = clock
 	gameMap.turnCounter = turnCounter
 	
 	take_turn(gameMap)
+	del gameMap
 	
-	logger.error("****** END TURN %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
+	with open("bot." + "debug", "a") as f:
+		objgraph.show_growth(limit=20,file=f)
+	
+	# try:
+		# objgraph.show_backrefs([gameMap], filename='sample-%s.png' % turnCounter)
+	# except Exception as e:
+		# logger.error(e)
+		# pass
+	logger.error("****** END TURN %d\t\t(time=%s) ******" % (turnCounter,timer()-clock))
+#	# logger.debug("****** GC DONE %d\t(time=%s) ******" % (turnCounter,timer()-gc_time))
 	
 
 # testBot()
 		
 		
-myID, gameMap = getInit(getString)
+# myID, gameMap = 
+getInit(getString)
 sendInit("DevBot")
 
 turnCounter = -1
 
 def main_loop():
-	while True:
-		profiling = True
-		# profiling = False
-		if not profiling:
+	profiling = True
+	profiling = False
+	import objgraph
+
+	if not profiling:
+		while True:
 			main()
-		else:
-			currpath = 'stats\mybot-currturn.stats'
-			lastpath = 'stats\mybot-lastturn.stats'
-			
-			if os.path.exists(currpath):
-				if os.path.exists(lastpath):
-					os.remove(lastpath)
-				os.rename(currpath, lastpath)
+	else:
+		if os.path.exists("stats"):
+			if os.path.exists("stats\*"):
+				os.remove("stats\*")
+		while True:
+			currpath = 'stats\mybot-%s.stats' % (turnCounter+1)
 			cProfile.run('main()', currpath)
-			# if "pypy" not in sys.executable:
-			# else:
-				# with open(currpath, "w") as f:
-					# vmprof.enable(f.fileno(), period=0.00099, memory=False)
-					# main()
-					# vmprof.disable()
 				
-#cProfile.run('main_loop()', 'stats\mybot.stats')
 main_loop()

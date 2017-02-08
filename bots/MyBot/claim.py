@@ -970,10 +970,10 @@ class CappedClaim(Claim):
 				
 				self.root.trail.define_threshholds()
 				self.value = self.root.trail.get_value()
-#				logger.debug("I'm a multipull and my value is %s" % self.value)
+#				# logger.debug("I'm a multipull and my value is %s" % self.value)
 			else:
 				self.value = self.root.trail.value
-#				logger.debug("I'm a monopull and my value is %s" % self.value)
+#				# logger.debug("I'm a monopull and my value is %s" % self.value)
 		else:
 			if self.root.site.strength == 0:
 				if self.gameMap.multipull:

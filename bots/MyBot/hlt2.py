@@ -34,6 +34,7 @@ class Location:
 		self.S = None
 		self.W = None
 		self.hash = None
+		self.shareable_moves = {}
 		self.trails = []
 		self.expanding_trails = []
 	
@@ -64,15 +65,15 @@ class Location:
 		# while l:
 #			# logger.debug("%s" % heapq.heappop(l))
 		
-		while (len(last_best.path[0].site.neutrals) < 3 or all([len(loc.site.neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
-#			logger.debug("Eliminating %s" % last_best)
+		while (len(last_best.path[0].site.neutrals) < 4 or any([len(loc.site.neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
+#			# logger.debug("Eliminating %s" % last_best)
 			heapq.heappop(self.trails)
 			last_best = self.trails[0]
 		
 		if not self.trails:
-#			logger.debug("Returning %s, %s remaining" % (None, len(self.trails)))
+#			# logger.debug("Returning %s, %s remaining" % (None, len(self.trails)))
 			return None
-#		logger.debug("Returning %s, %s remaining" % (last_best, len(self.trails)))
+#		# logger.debug("Returning %s, %s remaining" % (last_best, len(self.trails)))
 		return last_best
 		
 	def peer_deeper(self):
@@ -133,24 +134,27 @@ class Trail:
 		self.highest_threshhold = None
 		self.path = []
 		self.claim = None
+		
+		trail_discount_base = .9
+		
 		if claim:
 			self.claim = claim
 			new_loc = claim.loc
 			self.loc = new_loc
 			self.site = new_loc.site
-			self.benefit = balance.evalSiteProduction(self.site)
+			self.benefit = balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
 			self.cost = balance.evalSiteStrength(self.site)
 		elif trail and new_loc:
 			self.claim = trail.claim
 			self.loc = new_loc
 			self.site = new_loc.site
 			self.path.extend(trail.path)
-			self.benefit = balance.evalSiteProduction(self.site)
-			self.cost = balance.evalSiteStrength(self.site)
+			self.benefit = trail.benefit + balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
+			self.cost = trail.cost + balance.evalSiteStrength(self.site)
 		elif new_loc:
 			self.loc = new_loc
 			self.site = new_loc.site
-			self.benefit = balance.evalSiteProduction(self.site)
+			self.benefit = balance.evalSiteProduction(self.site) * trail_discount_base ** len(self.path)
 			self.cost = balance.evalSiteStrength(self.site)
 			
 		# else:
@@ -168,7 +172,8 @@ class Trail:
 			# if new_loc.site.owner == 0 and not new_loc in self.gameMap.getTerritory().fringe and not new_loc in self.path:
 				# child = Trail(trail=self, new_loc=new_loc)
 				# children.append(child)
-		return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if move.loc not in self.gameMap.getTerritory().fringe and not move.loc in self.path]
+		return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if not move.loc in self.path]
+		# return [Trail(trail=self, new_loc=move.loc) for move in self.site.neutrals if move.loc not in self.gameMap.getTerritory().fringe and not move.loc in self.path]
 
 	def __lt__(self, other):
 		return other.value < self.value
@@ -285,7 +290,7 @@ class Territory:
 		self.frontier = set()
 		self.fringe = set()
 		self.spread_zone = set()
-		self.map = map
+		self.gameMap = map
 		self.production = 0
 		self.strength = 0
 		self.center = None
@@ -302,7 +307,7 @@ class Territory:
 	def addLocation(self, location):
 		self.count += 1
 		if hasattr(location, "site"):
-			site = self.map.getSite(location)
+			site = self.gameMap.getSite(location)
 		else:
 			site = location
 			location = site.loc
@@ -317,9 +322,9 @@ class Territory:
 
 	def getCenter(self):
 		if not self.center:
-			center_y = self.map.row_counts[self.owner].index(max(self.map.row_counts[self.owner]))
-			center_x = self.map.col_counts[self.owner].index(max(self.map.col_counts[self.owner]))
-			self.center = self.map.getLocationXY(center_x, center_y)
+			center_y = self.gameMap.row_counts[self.owner].index(max(self.gameMap.row_counts[self.owner]))
+			center_x = self.gameMap.col_counts[self.owner].index(max(self.gameMap.col_counts[self.owner]))
+			self.center = self.gameMap.getLocationXY(center_x, center_y)
 		return self.center
 		
 	def getFrontier(self):
@@ -328,13 +333,13 @@ class Territory:
 	def isCenterRowFull(self):
 		if self.fullrow == None:
 			#y = self.getCenter().y
-			self.fullcol = any( [all([l.owner == self.owner for l in self.map.getRow(y)]) for y in range(self.map.height)])
+			self.fullcol = any( [all([l.owner == self.owner for l in self.gameMap.getRow(y)]) for y in range(self.gameMap.height)])
 		return self.fullrow
 		
 	def isCenterColumnFull(self):
 		if self.fullrow == None:
 			#x = self.getCenter().x
-			self.fullcol = any( [all([l.owner == self.owner for l in self.map.getColumn(x)]) for x in range(self.map.width)])
+			self.fullcol = any( [all([l.owner == self.owner for l in self.gameMap.getColumn(x)]) for x in range(self.gameMap.width)])
 		return self.fullcol		
 		
 class GameMap:
@@ -601,6 +606,11 @@ class GameMap:
 			done.update(curr)
 #		# logger.debug("Found %s strength in %s dist of %s of type %s" % (strength, dist, loc, type))
 		return strength
+		
+	def __exit__(self):
+		pass
+	def __enter__(self):
+		pass
 	
 	def getTerritories(self):
 		return self.territories.values()
@@ -692,7 +702,7 @@ class GameMap:
 #				# logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
 #				# logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
 #				#logger.debug("Enemies: %s" % debug_list(site.enemies))
-				if t.owner == t.map.playerTag:
+				if t.owner == t.gameMap.playerTag:
 					moveset = site.friends
 				else:
 					moveset = site.enemies

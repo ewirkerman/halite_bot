@@ -8,7 +8,7 @@ from networking2 import *
 from moves import *
 import logging
 import time
-import objgraph
+#import objgraph
 from math import pi
 import cProfile
 import pstats
@@ -123,7 +123,7 @@ def take_turn(gameMap):
 	gameMap.multipull = False
 	gameMap.chunkedpull = gameMap.multipull and True
 	gameMap.breakthrough = True
-	gameMap.breakthrough_range = 5
+	gameMap.breakthrough_range = 3
 	gameMap.trail_search_distance_max = 6
 	gameMap.gen_cap = False
 	########################################
@@ -194,7 +194,7 @@ def take_turn(gameMap):
 	# while any([claim.expanding_trails for claim in all_capped_claims]):
 		# [claim.peer_deeper() for claim in all_capped_claims if claim.expanding_trails]
 	
-	logger.error("min_time = %s, max_time = %s" % (min_time, max_time))
+	# logger.error("min_time = %s, max_time = %s" % (min_time, max_time))
 	
 	logger.error("****** TRAIL DEPTH %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
@@ -234,7 +234,7 @@ def take_turn(gameMap):
 				# for claim in gen.claims:
 					# move_dict[claim.loc] = claim.gen
 			# logger.info("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
-#	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.fringe, gameMap, get_planned_move))))
+#	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.fringe, gameMap, get_planned_move), gameMap)))
 
 	logger.error("****** SPREAD DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	
@@ -268,7 +268,7 @@ def take_turn(gameMap):
 		# for gen in root.gens.values():
 			# for claim in gen.claims:
 				# move_dict[claim.loc] = "%s%s" % ("S^>v<"[claim.get_parent_direction()],int(claim.value*1000))
-		# logger.error("root map %s %s:%s" % (turnCounter, root.loc, root.max_gen and getMoveMap(move_dict = move_dict) or "None"))
+#		# logger.debug("root map %s %s:\n%s\n%s" % (turnCounter, root.loc, root.loc.trails[0], root.max_gen and getMoveMap(move_dict = move_dict, gameMap=gameMap) or "None"))
 		# if root.max_gen:
 			# pass
 		
@@ -290,13 +290,12 @@ def take_turn(gameMap):
 	
 	# logger.info("inb map %s: %s" % (turnCounter, getMoveMap(move_dict = dict(loc_inbound))))
 	
-#	logger.debug("Moves map %s: %s" % (turnCounter, getMoveMap(moves)))
+#	logger.debug("Moves map %s: %s" % (turnCounter, getMoveMap(moves, gameMap)))
 	
 	del gameMap
 	
-	# if turnCounter >= 4:
+	# if turnCounter >= 15:
 		# raise Exception("Test Frame Ended")
-	# moves = []
 	mf.submit_moves(moves)
 	mf.output_all_moves()
 	del mf
@@ -348,7 +347,7 @@ turnCounter = -1
 def main_loop():
 	profiling = True
 	# profiling = False
-	import objgraph
+	#import objgraph
 
 	if not profiling:
 		while True:

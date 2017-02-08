@@ -16,8 +16,8 @@ $player_count = (2) | Get-Random
 
 
 $myBot = "python -m memory_profiler MyBot.py"
-$myBot = "python bots\MyBot\MyBot.py"
 $myBot = "python MyBot.py"
+$myBot = "python bots\MyBot\MyBot.py"
 
 $players = New-Object System.Collections.ArrayList($null)
 $players.add($myBot)

@@ -61,13 +61,17 @@ class Location:
 	def get_best_trail(self):
 		last_best = self.trails[0]
 	
-		# logger.debug("List of trails:")
+		# logger.debug("\nList of trails for %s:" % self)
 		# l = list(self.trails)
 		# while l:
-			# logger.debug("%s" % heapq.heappop(l))
+			# loc = heapq.heappop(l)
+			# logger.debug("%s" % loc)
+			# pass
 		
-		while (len(last_best.path[0].site().neutrals) < 4 or any([len(loc.site().neutrals) < 4 for loc in last_best.path[1:]])) and len(self.trails) > 1:
-			# logger.debug("Eliminating %s" % last_best)
+		
+		logger.debug("%s"%[len(loc.site().neutrals) for loc in last_best.path])
+		while (len(last_best.path[0].site().neutrals) < 3 or any([len(loc.site().enemies) > 0 for loc in last_best.path[1:]])) and len(self.trails) > 1:
+			logger.debug("Eliminating %s" % last_best)
 			heapq.heappop(self.trails)
 			last_best = self.trails[0]
 		

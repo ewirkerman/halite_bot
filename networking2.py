@@ -1,6 +1,6 @@
 from hlt2 import *
 from moves import Move
-import objgraph
+#import objgraph
 from inspect import currentframe, getframeinfo
 import socket
 import traceback

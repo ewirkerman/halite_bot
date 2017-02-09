@@ -69,8 +69,8 @@ class Location:
 			# pass
 		
 		
-#		logger.debug("%s"%[len(loc.site().neutrals) for loc in last_best.path])
-		while (len(last_best.path[0].site().neutrals) < 3 or any([len(loc.site().enemies) > 0 for loc in last_best.path[1:]])) and len(self.trails) > 1:
+#		# logger.debug("%s"%[len(loc.site().neutrals) for loc in last_best.path])
+		while (len(last_best.path[0].site().enemies) > 0 or any([len(loc.site().enemies) > 0 for loc in last_best.path[1:]])) and len(self.trails) > 1:
 #			logger.debug("Eliminating %s" % last_best)
 			heapq.heappop(self.trails)
 			last_best = self.trails[0]
@@ -87,7 +87,7 @@ class Location:
 		# depth = 10
 		
 		old_trails = list(self.expanding_trails)
-#		# logger.debug("Expanding %s" % old_trails)
+#		logger.debug("Expanding %s" % old_trails)
 		self.expanding_trails = []
 		for trail in old_trails:
 			if len(trail) > 1:
@@ -97,6 +97,9 @@ class Location:
 			children = trail.get_child_trails()
 			if children:
 				self.expanding_trails.extend(children)
+	
+	def can_explore(self):
+		return len(self.expanding_trails) > 0
 		
 	
 class Site:

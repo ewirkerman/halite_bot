@@ -8,6 +8,8 @@ from networking2 import *
 from moves import *
 import logging
 import time
+import threading
+from collections import deque
 #import objgraph
 from math import pi
 import cProfile
@@ -102,7 +104,9 @@ def layered_iteration(seed, gameMap, func, sort_func=None, limit=None, owner=Non
 				return results
 		curr_wave = next_wave
 	return results
+	
 
+exploration_depth = 6
 def take_turn(gameMap):
 
 	####### Seed the location Trail
@@ -121,13 +125,10 @@ def take_turn(gameMap):
 	gameMap.chunkedpull = gameMap.multipull and True
 	gameMap.breakthrough = True
 	gameMap.breakthrough_range = 3
-	gameMap.trail_search_distance_max = 6
+	gameMap.trail_search_distance_max = exploration_depth
 	gameMap.gen_cap = False
 	########################################
 		
-		
-	
-	
 	
 	logger.debug("****** START TURN %d ******" % turnCounter)
 	
@@ -176,15 +177,19 @@ def take_turn(gameMap):
 	####### Trail depth expansion
 	for claim in all_capped_claims:
 		# logger.debug("Peering into %s's expanding_trails: %s" % (claim.loc,claim.loc.expanding_trails))
-		while claim.loc.expanding_trails:
+		while claim.loc.can_explore():
 			start_peer = timer()
 			claim.loc.peer_deeper()
 			peer_time = timer() - start_peer
 			min_time = min([peer_time, min_time])
 			max_time = max([peer_time, max_time])
+		explored.add(claim.loc)
 				
 		# logger.debug("Made trail of length %s" % len(claim.loc.get_best_trail()))
 		claim.trail = claim.loc.get_best_trail()
+		
+		# prioritizing the exploration of these paths because they're going to come up next
+		explore_queue.extendleft([loc for loc in claim.trail.path if loc not in claim.trail and loc not in explored])
 		# logger.debug("Best trail for %s is %s" % (claim.loc, claim.trail))
 		claim.recalc_value()
 	
@@ -231,29 +236,10 @@ def take_turn(gameMap):
 				# for claim in gen.claims:
 					# move_dict[claim.loc] = claim.gen
 			# logger.info("root map %s: %s" % (turnCounter, getMoveMap(move_dict = move_dict)))
-	logger.debug("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.fringe, gameMap, get_planned_move), gameMap)))
+	logger.error("Spread map %s: %s" % (turnCounter, getMoveMap(layered_iteration(t.fringe, gameMap, get_planned_move), gameMap)))
 
 	logger.error("****** SPREAD DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
-	
-	# ###### Try getting rid of bad unfinished claims
-	# base = list(all_capped_claims)
-	# base.sort(key=lambda c: c.value)
-	
-	# curr = list(base)
-	# failsafe = 30
-	# while not all([balance.claim_complete_conditions(root) for root in curr]) and failsafe:
-		# failsafe -= 1
-		# erased = False
-		# curr = [c for c in curr if not balance.claim_complete_conditions(claim)]
-		# for claim in curr:
-			# if not balance.claim_complete_conditions(claim):
-				# if not erased:
-					# logger.debug("Erased the weakest claim %s" % claim)
-					# claim.erase()
-					# erased = True
-				# else:
-					# logger.debug("Spread the claim %s" % claim)
-					# claim.spread()
+
 		
 	
 	
@@ -265,11 +251,15 @@ def take_turn(gameMap):
 		# for gen in root.gens.values():
 			# for claim in gen.claims:
 				# move_dict[claim.loc] = "%s%s" % ("S^>v<"[claim.get_parent_direction()],int(claim.value*1000))
-		# logger.debug("root map %s %s:\n%s\n%s" % (turnCounter, root.loc, root.loc.trails[0], root.max_gen and getMoveMap(move_dict = move_dict, gameMap=gameMap) or "None"))
+		# logger.error("root map %s %s:\n%s\n%s" % (turnCounter, root.loc, root.loc.trails[0], root.max_gen and getMoveMap(move_dict = move_dict, gameMap=gameMap) or "None"))
 		# if root.max_gen:
 			# pass
-		
-	
+	move_dict = {}
+	for loc in explored:
+		move_dict[loc] = "X"
+	for loc in explore_queue:
+		move_dict[loc] = "="
+	logger.error("Explore map %s:%s" % (turnCounter, getMoveMap(move_dict = move_dict, gameMap=gameMap)))
 	
 	######## Claim Move Filtering
 		
@@ -289,17 +279,76 @@ def take_turn(gameMap):
 	
 	logger.debug("Moves map %s: %s" % (turnCounter, getMoveMap(moves, gameMap)))
 	
-	del gameMap
 	
 	# if turnCounter >= 15:
 		# raise Exception("Test Frame Ended")
 	mf.submit_moves(moves)
+	
+	if not explore_queue:
+		logger.debug("explore_queue was empty - reseeding from fringe")
+		explore_queue.extend([loc for loc in gameMap.getTerritory().fringe if not any([n.enemies for n in gameMap.neighbors(loc, 1, True)]) and loc.site().strength])
+		
+	try:
+		result = True
+		while timer()-gameMap.clock < .95 and result:
+			result = seek()
+		logger.debug("Time is up, so rejoining!")
+	except IndexError as e:
+		logger.debug(e)
+		logger.debug("There's nothing in the world left to think about, so I'm going to increase search depth")
+		global exploration_depth
+		exploration_depth += 1
+		
+		
+	logger.error("****** EXPLORATION DONE %d\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
+	
+	del gameMap
 	mf.output_all_moves()
 	del mf
+	
+explore_queue = deque()
+gotFrameLock = threading.Lock()
+explored = set()
+
+def seek():
+	if not explore_queue:
+		return False
+	peer_target = explore_queue.popleft()
+	if peer_target.can_explore():
+		logger.debug("Peering at %s" % peer_target)
+		peer_target.peer_deeper()
+		explore_queue.appendleft(peer_target)
+	else:
+		logger.debug("Expanding from %s" % peer_target)
+		explored.add(peer_target)
+		
+		children = set()
+		for trail in peer_target.trails:
+			children.update([loc for loc in trail.path if loc not in explore_queue and loc not in explored and loc.site().owner == 0])
+		explore_queue.extend(children)
+	return True
+	
+def explore():
+	logger.debug("Exploring!")
+
+	try:
+		while not gotFrameLock.acquire(blocking=False):
+			seek()
+		logger.debug("Next frame is ready, so rejoining!")
+	except IndexError as e:
+		logger.debug(e)
+		logger.debug("There's nothing in the world left to think about")
+	except Exception as e:	
+		logger.debug("Something went wrong: %s" % e )
+	finally:
+		gotFrameLock.release()
+	
+		
 	
 def main():
 	
 	global turnCounter
+	global last_map
 	
 	turnCounter += 1
 	logger.debug("****** PREP TURN %d ******" % turnCounter)
@@ -308,14 +357,35 @@ def main():
 	# with open("bot." + "debug", "a") as f:
 		# logger.error("Growth at %s" % getframeinfo(currentframe()).lineno)
 		# objgraph.show_growth(limit=20,file=f)
-	gameMap = getFrame(test_frame)
-	clock = timer()
-	gameMap.clock = clock
+		
+	
+	####### Idle exploration
+	logger.debug("last_map is %s" % last_map)
+	if last_map:
+		logger.debug("Going to explore!")
+		global explore_queue
+		explore_queue = deque([loc for loc in last_map.getTerritory().fringe if not any([n.enemies for n in last_map.neighbors(loc, 1, True)])])
+		#not sure if I want to reuse the queue from last turn or just do a new one
+		gotFrameLock.acquire()
+		explore_thread = threading.Thread(target=explore, daemon = True)
+		explore_thread.start()
+		
+		thread_pair = (explore_thread, gotFrameLock)
+		
+		# gotFrameLock is released immediately after the string comes in
+		# otherwise, the locations get screwed up by the incoming gameMap
+		gameMap = getFrame(test_frame, thread_pair )	
+		
+		
+	else:
+		gameMap = getFrame(test_frame)
+	
 	gameMap.turnCounter = turnCounter
 	
 	take_turn(gameMap)
 	# objgraph.show_backrefs([gameMap], filename='sample-%s.png' % turnCounter)
-	del gameMap
+	
+	
 	
 	# with open("bot." + "debug", "a") as f:
 		# logger.error("Growth at %s" % getframeinfo(currentframe()).lineno)
@@ -326,8 +396,9 @@ def main():
 	# except Exception as e:
 		# logger.error(e)
 		# pass
-	logger.error("****** END TURN %d\t\t(time=%s) ******" % (turnCounter,timer()-clock))
+	logger.error("****** END TURN %d\t\t(time=%s) ******" % (turnCounter,timer()-gameMap.clock))
 	# logger.debug("****** GC DONE %d\t(time=%s) ******" % (turnCounter,timer()-gc_time))
+	last_map = gameMap
 	
 
 # testBot()
@@ -340,8 +411,10 @@ getInit(getString)
 sendInit("DevBot")
 
 turnCounter = -1
+last_map = None
 
 def main_loop():
+	global last_map
 	profiling = True
 	# profiling = False
 	#import objgraph

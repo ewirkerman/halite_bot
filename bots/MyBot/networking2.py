@@ -2,6 +2,7 @@ from hlt2 import *
 from moves import Move
 #import objgraph
 from inspect import currentframe, getframeinfo
+from timeit import default_timer as timer
 import socket
 import traceback
 from ctypes import *
@@ -202,12 +203,27 @@ def getInit(getString=getString):
 def sendInit(name):
 	sendString(name)
 
-def getFrame(test_string = None):
+def getFrame(test_string = None, thread_pair=None):
+	frame = getString()
+	received_time = timer()
+	
+	if thread_pair:
+#		map_logger.debug("New frame incoming, so joining explore_thread")
+		gotFrameLock = thread_pair[1]
+		explore_thread = thread_pair[0]
+		gotFrameLock.release()
+#		map_logger.debug("joining")
+		explore_thread.join()
+#		map_logger.debug("joined but I lost %s seconds joining them" % (timer()-received_time))
+#		map_logger.debug("%s" % line)
+	
+	
 	m = GameMap(_width, _height, playerTag = playerTag)
+	m.clock = received_time
 	if test_string:
 		deserializeMap(m, getStringTest())
 	else:
-		deserializeMap(m, getString())
+		deserializeMap(m, frame)
 	m.defineTerritories()
 	# m.local_maxima = local_maxima
 	return m

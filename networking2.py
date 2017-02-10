@@ -215,7 +215,6 @@ def getFrame(test_string = None, thread_pair=None):
 		map_logger.debug("joining")
 		explore_thread.join()
 		map_logger.debug("joined but I lost %s seconds joining them" % (timer()-received_time))
-		map_logger.debug("%s" % line)
 	
 	
 	m = GameMap(_width, _height, playerTag = playerTag)

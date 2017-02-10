@@ -188,8 +188,8 @@ def claim_move_conditions_parentless(claim):
 					claim.root.breakthrough = True
 					logging.getLogger("bot").debug("Success - %s will breakthrough %s!" % (claim.loc, claim.loc))
 				elif t.strength < m.strength or t.production < m.production:
-					local_e = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_range, type="enemies")
-					local_m = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_range-1, type="friends")
+					local_e = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_pull_range, type="enemies")
+					local_m = claim.gameMap().get_friendly_strength(loc=parent.loc, dist=claim.gameMap().breakthrough_pull_range, type="friends")
 					logging.getLogger("bot").debug("Checking for local breakthrough: ms:%s\tts:%s" %(local_m, local_e))
 					if local_m - parent.site().strength > local_e * 2:
 						ret = True
@@ -226,7 +226,7 @@ def send_gen_conditions(claim, gen_index = None):
 	prec = gen.get_preceding_str()
 	
 	# logging.getLogger("bot").debug("%s is check_strength_threshhold to cover cap %s?" % (prec, gen.strength) )
-	if claim.root.trail.check_strength_threshhold(prec, gen.strength): 
+	if claim.root.trail.check_strength_threshhold(claim, prec, gen.strength): 
 		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim.root, claim.root.cap) )
 		return True
 		
@@ -248,9 +248,10 @@ def claim_complete_conditions(claim, this_gen_str = 0, this_gen_production = 0):
 			return claim.cap < claim.strength + this_gen_str
 		return False
 		
-	# logging.getLogger("bot").debug("%s is enough to cover cap %s?" % (claim.strength, claim.cap) )
-	if claim.gameMap().multipull and claim.strength + this_gen_str > claim.trail.threshholds[-1]: 
-		return True
+	if claim.gameMap().multipull:
+		logging.getLogger("bot").debug("%s + %s is enough to cover cap %s?" % (claim.strength, this_gen_str, claim.trail.threshholds[-1]) )
+		if claim.strength + this_gen_str > claim.trail.threshholds[-1]:
+			return True
 	elif claim.strength + this_gen_str > claim.cap: 
 		# logging.getLogger("bot").debug("%s has enough to cover cap %s " % (claim, claim.cap) )
 		return True

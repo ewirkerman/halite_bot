@@ -103,7 +103,7 @@ def validate_direction(claim, parent, breach):
 			# loc.site().heap.filter_to_loc(parent.loc)
 			claim.site().heap.dir = STILL
 			return True
-		
+			
 		# Since you're internal and big enough, move to checker
 		elif will_move and not is_checker and claim.site().strength > claim.site().production * 7:
 			# loc.site().heap.filter_to_loc(parent.loc)
@@ -201,7 +201,9 @@ def find_loc_move(loc, depth=0):
 	
 	all_capped = all([child.is_capped() for child in children])
 	logger.debug("All children are: %s" % debug_list([(child.loc.__str__(), "HNESW"[child.dir]) for child in children]))
-	for child in list(children):
+	iter_children = list(children)
+	for child in iter_children:
+		logger.debug("Result for child %s" % child)
 		# Being in best means that you will move
 		if breach:
 			logger.debug("BREACH child %s rejected by parent %s" % (child, self) )
@@ -219,6 +221,12 @@ def find_loc_move(loc, depth=0):
 		elif child.site().heap.dir == STILL:
 			logger.debug("STILL child %s (%s) accepted by parent %s" % ("HNESW"[child.dir], child, loc) )
 			pass
+			
+		elif self.is_uncapped() and self.cap and self.gen < child.gameMap().breakthrough_hold_range:
+			logger.debug("GAP child %s (%s) accepted by parent %s" % ("HNESW"[child.dir], child, loc) )
+			child.site().heap.dir = STILL
+			pass
+			
 		else:
 			logger.debug("MOVE child %s (%s) rejected by parent %s" % ("HNESW"[child.dir], child, loc) )
 			child.site().heap.filter_out_loc(loc)
@@ -721,9 +729,8 @@ class Claim:
 				logger.debug("Skipping gen because we already have more than 255 in it")
 				continue
 			
-			logger.debug
-			if self.is_uncapped() and self.cap and parent.gen <= self.gameMap().breakthrough_range:
-				if any([not move.loc.site().strength for move in self.site().neutrals]):
+			if self.is_uncapped() and self.cap and parent.gen <= self.gameMap().breach_separation:
+				if any([not move.loc.site().strength for move in parent.site().neutrals]):
 					self.erase()
 					logger.debug("This isn't a really a breakthrough because %s too close to an opening" % self)
 					# I check the children later
@@ -848,7 +855,7 @@ class UncappedClaim(Claim):
 			self.cost = 1
 			self.value = self.benefit *1.0/ self.cost
 			if self.site().strength:
-				self.cap = map.get_friendly_strength(loc=self.loc, dist=map.breakthrough_range + 1, type="enemies")
+				self.cap = map.get_friendly_strength(loc=self.loc, dist=map.breakthrough_hold_range + 2, type="enemies")
 				self.value += 1000
 				
 			if self.parent.site().owner == 0:
@@ -869,7 +876,7 @@ class UncappedClaim(Claim):
 			self.benefit = parent.benefit
 			self.cost = 5 + self.gen
 			self.value = self.root.value * .95**self.gen
-			if not self.root.site().strength and self.gen < self.gameMap().breakthrough_range and self.site().strength:
+			if not self.root.site().strength and self.gen < self.gameMap().breakthrough_hold_range and self.site().strength:
 				self.value+=1000
 			
 			
@@ -930,7 +937,7 @@ class CappedClaim(Claim):
 		
 		if self.root is self:
 			self.trail = self.loc.get_best_trail()
-			if False and map.breakthrough and map.get_friendly_strength(loc=location, dist=3, type="friends") > map.get_friendly_strength(loc=location, dist=claim.gameMap().breakthrough_range, type="enemies"):
+			if False and map.breakthrough and map.get_friendly_strength(loc=location, dist=claim.gameMap().breakthrough_pull_range+1, type="friends") > map.get_friendly_strength(loc=location, dist=claim.gameMap().breakthrough_pull_range, type="enemies"):
 				# self.cap = max([min([ 254, map.get_enemy_strength(self.loc, range=1) * 2]),self.site().strength])
 				self.cap = max([min([ 254, map.get_friendly_strength(loc=self.parent.loc, dist=1, type="enemies") * 2]),self.site().strength])
 			else:
@@ -967,7 +974,6 @@ class CappedClaim(Claim):
 	def recalc_value(self):
 		if self.root is self:
 			if self.gameMap().multipull:
-				
 				self.root.trail.define_threshholds()
 				self.value = self.root.trail.get_value()
 				# logger.debug("I'm a multipull and my value is %s" % self.value)
@@ -977,12 +983,14 @@ class CappedClaim(Claim):
 		else:
 			if self.root.site().strength == 0:
 				if self.gameMap().multipull:
-					self.value = self.root.trail.get_value(self.root.strength) *1.0/ (self.site().strength or 1)
+					self.value = self.root.trail.get_value(self.root.strength) *1.0#/ (self.site().strength or 1)
+					self.value = self.root.trail.get_value() *1.0#/ (self.site().strength or 1)
 				else:
 					self.value = self.root.value *1.0/ (self.site().strength or 1)
 			else:
 				if self.gameMap().multipull:
 					self.value = self.root.trail.get_value(self.root.strength) * .8 ** self.gen
+					self.value = self.root.trail.get_value() * .9 ** self.gen
 				else:
 					self.value = self.root.value * .9 ** self.gen
 	

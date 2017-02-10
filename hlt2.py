@@ -5,6 +5,7 @@ import logging
 import heapq
 import weakref
 from util import *
+from timeit import default_timer as timer
 
 
 logger = logging.getLogger("bot")
@@ -87,15 +88,20 @@ class Location:
 		# depth = 10
 		
 		old_trails = list(self.expanding_trails)
-		logger.debug("Expanding %s" % old_trails)
-		self.expanding_trails = []
-		for trail in old_trails:
+		# logger.debug("Expanding...\n%s" % "\n".join([trail.__str__() for trail in self.expanding_trails]) )
+		for trail in list(self.expanding_trails):
+			if self.gameMap().clock and (timer()-self.gameMap().clock > .95):
+				logger.debug("WHOA! Time is running out %s! abort!" % (timer()-self.gameMap().clock))
+				break
+			self.expanding_trails.remove(trail)
+			# logger.debug("Pulled out %s" % trail )
 			if len(trail) > 1:
 				heapq.heappush(self.trails, trail)
 			if len(trail) >= depth:
 				continue
 			children = trail.get_child_trails()
 			if children:
+				# logger.debug("Put in %s" % trail )
 				self.expanding_trails.extend(children)
 	
 	def can_explore(self):
@@ -169,7 +175,7 @@ class Trail:
 		# else:
 			# raise Exception("Unable to initialize Trail with %s, %s, %s" % (claim, trail, new_loc))
 		self.path.append(new_loc)
-		self.gameMap = new_loc.gameMap
+		self.gameMap = weakref.ref(new_loc.gameMap())
 		self.value = self.benefit * 1.0/ self.cost
 		# logger.debug("Trail %s" % self)
 		
@@ -181,7 +187,7 @@ class Trail:
 			# if new_loc.site().owner == 0 and not new_loc in self.gameMap().getTerritory().fringe and not new_loc in self.path:
 				# child = Trail(trail=self, new_loc=new_loc)
 				# children.append(child)
-		return [Trail(trail=self, new_loc=move.loc) for move in self.loc.site().neutrals if not move.loc in self.path]
+		return [Trail(trail=self, new_loc=move.loc) for move in self.loc.site().neutrals if not move.loc in self.path and not move.loc in move.loc.gameMap().getTerritory().fringe and not move.loc in move.loc.gameMap().getTerritory().territory]
 		# return [Trail(trail=self, new_loc=move.loc) for move in self.site().neutrals if move.loc not in self.gameMap().getTerritory().fringe and not move.loc in self.path]
 
 	def __lt__(self, other):
@@ -197,6 +203,7 @@ class Trail:
 		return "%s\t%s" % (self.value, debug_list(self.path))
 		
 	def define_threshholds(self):
+		import balance
 		self.threshholds = []
 		self.threshhold_values = []
 		strength = 0
@@ -209,8 +216,8 @@ class Trail:
 		cost = 0
 		# logger.debug("Old value is %s" % self.value)
 		for i in range(len(self.path),0,-1):
-			benefit += balance.evalSiteProduction(self.path[i-1].site)
-			cost += balance.evalSiteStrength(self.path[i-1].site)
+			benefit += balance.evalSiteProduction(self.path[i-1].site())
+			cost += balance.evalSiteStrength(self.path[i-1].site())
 			# logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
 			self.threshhold_values.append(benefit  * 1.0/ cost)
 			# logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
@@ -220,6 +227,9 @@ class Trail:
 			pass
 		
 	def get_value(self, strength = 0):
+		if not self.gameMap():
+			self.gameMap = weakref.ref(self.path[0].gameMap())
+			
 		if not self.gameMap().multipull:
 			return self.value
 	
@@ -230,7 +240,7 @@ class Trail:
 				return self.threshhold_values[i]
 		return self.threshhold_values[-1]
 		
-	def check_strength_threshhold(self, base, delta):
+	def check_strength_threshhold(self, claim, base, delta):
 		# if not self.highest_threshhold:
 			# self.highest_threshhold = self.find_highest_threshhold()
 	
@@ -254,7 +264,7 @@ class Trail:
 		
 		
 		potential_multis = len(self.threshholds)
-		production = self.claim.get_total_production()
+		production = claim.get_total_production()
 		
 		
 		

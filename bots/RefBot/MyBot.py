@@ -346,7 +346,7 @@ turnCounter = -1
 
 def main_loop():
 	profiling = True
-	# profiling = False
+	profiling = False
 	#import objgraph
 
 	if not profiling:

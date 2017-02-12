@@ -74,19 +74,43 @@ def validate_direction(claim, parent, breach):
 		
 		if will_move and claim.is_capped():
 			if claim.root.site().strength and not claim.site().strength:
-#				# logger.debug("%s shouldn't move even for a capped claim because I'll add nothing" % claim)
+#				logger.debug("%s shouldn't move even for a capped claim because I'll add nothing" % claim)
 				claim.site().heap.dir = STILL
 				return False
+			elif not claim.root.site().strength and parent_e_str :
+#				logger.debug("%s isn't safe to expand because parent_e_str = %s" % (claim, parent_e_str))
+				# loc.site().heap.filter_to_loc(parent.loc)
+				claim.site().heap.dir = STILL
+				return True
+
 			else:
-#				# logger.debug("Willing to move %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site().strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
+#				logger.debug("Willing to move %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site().strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
 				# loc.site().heap.filter_to_loc(parent.loc)
 				claim.site().heap.dir = claim.dir
 				return True
 		
+		elif will_move and claim.gen == 2 and parent.site().heap.dir and parent.site().owner == parent.gameMap().playerTag:
+#			logger.debug("staying off the second gen of an attack wave at %s" % parent.loc)
+			# loc.site().heap.filter_to_loc(parent.loc)
+			claim.site().heap.dir = STILL
+			return True
+			
+			# still_damage_potential = claim.gameMap().get_friendly_strength(claim.loc, dist=3, type="enemies") - claim.gameMap().get_friendly_strength(claim.loc, dist=2, type="enemies")
+			# move_damage_potential = claim.gameMap().get_friendly_strength(claim.loc, dist=3, type="enemies") - claim.gameMap().get_friendly_strength(claim.loc, dist=2, type="enemies")
+			
+			# enemy_total = 0
+			# for move in parent.loc.site().enemies:
+				# ene
+			# if still_damage_potential > move_damage_potential:
+#				# logger.debug("%s thinks it'll deal more damage than moving" % claim)
+				# # loc.site().heap.filter_to_loc(parent.loc)
+				# claim.site().heap.dir = STILL
+				# return True
+		
 		# If moving deals more enemy damage than staying still, move
 		#elif will_move and not is_checker and claim.site().strength * len(parent.site().enemies) > claim.site().production:
 		elif will_move and claim.site().strength * len(parent.site().enemies) > claim.site().production:
-#			# logger.debug("%s attacking off checker because that'll deal more damage than staying" % claim)
+#			logger.debug("%s attacking off checker because that'll deal more damage than staying" % claim)
 			# loc.site().heap.filter_to_loc(parent.loc)
 			claim.site().heap.dir = claim.dir
 			return True
@@ -108,7 +132,7 @@ def validate_direction(claim, parent, breach):
 		elif will_move and not is_checker and claim.site().strength > claim.site().production * 7:
 			# loc.site().heap.filter_to_loc(parent.loc)
 			claim.site().heap.dir = claim.dir
-#			# logger.debug("Willing to move %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site().strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
+#			logger.debug("Willing to checker %s%s %s to %s (e:%s)" % (claim.is_capped() and "C" or "U",claim.site().strength,"HNESW"[claim.dir], parent.loc, parent_e_str) )
 			return True
 			
 		# elif will_move and claim.site().strength == 255 and all([move.loc.site().strength == 255 for move in claim.site().friends]):
@@ -136,19 +160,19 @@ def validate_direction(claim, parent, breach):
 		
 		# If won't move and no overflow, then just stay still
 		elif will_move:
-#			# logger.debug("just grow because %s is too small" % claim)
+#			logger.debug("just grow because %s is too small" % claim)
 			if not claim.site().heap.dir:
 				claim.site().heap.dir = STILL
 			return False
 		
 		# If won't move and no overflow, then just stay still
 		elif not will_move:
-#			# logger.debug("%s choosing to stay STILL" % claim)
+#			logger.debug("%s choosing to stay STILL" % claim)
 			claim.site().heap.dir = STILL
 			return True
 				
 		else:
-#			# logger.debug("How did it get here? I guess I'm moving %s" % "HNESW"[claim.dir])
+#			logger.debug("How did it get here? I guess I'm moving %s" % "HNESW"[claim.dir])
 			pass
 			
 	else:
@@ -177,10 +201,10 @@ def find_loc_move(loc, depth=0):
 #	logger.debug( "\nFiltering (depth = %s) children of %sf%s (owned by %s): %s" % (depth, loc.gameMap().turnCounter,loc, loc.site().owner, debug_list(children)) )	
 
 	
-	self.parent_e_str = self.gameMap().get_friendly_strength(loc=parent.loc, dist=2, type="enemies")
+	self.parent_e_str = self.gameMap().get_friendly_strength(loc=parent.loc, dist=3, type="enemies")
 	self.breach_str = 0
 	if self.parent_e_str:
-		self.breach_str = self.gameMap().get_friendly_strength(loc=parent.loc, dist=1, type="enemies")
+		self.breach_str = self.gameMap().get_friendly_strength(loc=parent.loc, dist=2, type="enemies")
 #		logger.debug( "Found breach_str of %s at %s (s: %s)" % (self.breach_str, parent.loc, parent.loc.site().strength))
 
 		
@@ -196,7 +220,13 @@ def find_loc_move(loc, depth=0):
 	best = self.get_best_children(moveable_children)
 	
 	
-	
+	if self.is_root() and self.is_uncapped():
+		for move in self.site().friends:
+			neighbor = move.loc.site().heap.get_best_claim()
+#			logger.debug("Checking neighbor for spacing: %s" % neighbor)
+			if neighbor and neighbor.gen == 1 and neighbor.site().heap.dir and neighbor.site().is_mine() and neighbor.root is not self:
+#				logger.debug("%s has a moving neighbor at %s should I yield?" % (self, neighbor))
+				break
 	
 	
 	all_capped = all([child.is_capped() for child in children])
@@ -241,9 +271,14 @@ def find_loc_move(loc, depth=0):
 	if breach and children and self.site().strength and self.site().owner == self.gameMap().playerTag:
 		biggest = min(children, key=breach_escape_eval)
 		self.site().heap.filter_to_loc(None)
-		child = biggest.create_child(util.getOppositeDir(biggest.dir))
-		biggest.activate_child(child)
-		self.site().heap.dir = util.getOppositeDir(biggest.dir)
+		if biggest.site().inb_str + biggest.site().strength + self.site().strength < 255:
+			child = biggest.create_child(util.getOppositeDir(biggest.dir))
+			biggest.activate_child(child)
+			self.site().heap.dir = util.getOppositeDir(biggest.dir)
+			check_new_parent(child, depth)
+		else:
+#			logger.debug("Breach has nowhere to run")
+			self.site().heap.dir = STILL
 	elif ( not self.site().heap.dir == self.get_parent_direction() ) and self.site().strength < inb_str and total_str > 255:
 #		logger.debug("Overflow expected at %s because of %s" % (self, debug_list(best)) )
 		biggest = max(best, key=get_claim_strength)
@@ -855,7 +890,7 @@ class UncappedClaim(Claim):
 			self.cost = 1
 			self.value = self.benefit *1.0/ self.cost
 			if self.site().strength:
-				self.cap = map.get_friendly_strength(loc=self.loc, dist=map.breakthrough_hold_range + 2, type="enemies")
+				self.cap = map.get_friendly_strength(loc=self.loc, dist=map.breakthrough_hold_range + 1, type="enemies")
 				self.value += 1000
 				
 			if self.parent.site().owner == 0:
@@ -876,7 +911,7 @@ class UncappedClaim(Claim):
 			self.benefit = parent.benefit
 			self.cost = 5 + self.gen
 			self.value = self.root.value * .95**self.gen
-			if not self.root.site().strength and self.gen < self.gameMap().breakthrough_hold_range and self.site().strength:
+			if not self.root.site().strength and self.gen < self.gameMap().breakthrough_pull_range and self.site().strength:
 				self.value+=1000
 			
 			
@@ -990,7 +1025,7 @@ class CappedClaim(Claim):
 			else:
 				if self.gameMap().multipull:
 					self.value = self.root.trail.get_value(self.root.strength) * .8 ** self.gen
-					self.value = self.root.trail.get_value() * .9 ** self.gen
+					self.value = self.root.trail.get_value() * .999 ** self.gen
 				else:
 					self.value = self.root.value * .9 ** self.gen
 	

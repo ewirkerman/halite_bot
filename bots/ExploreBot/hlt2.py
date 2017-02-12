@@ -62,24 +62,24 @@ class Location:
 	def get_best_trail(self):
 		last_best = self.trails[0]
 	
-		# logger.debug("\nList of trails for %s:" % self)
+#		# logger.debug("\nList of trails for %s:" % self)
 		# l = list(self.trails)
 		# while l:
 			# loc = heapq.heappop(l)
-			# logger.debug("%s" % loc)
+#			# logger.debug("%s" % loc)
 			# pass
 		
 		
-		# logger.debug("%s"%[len(loc.site().neutrals) for loc in last_best.path])
+#		# logger.debug("%s"%[len(loc.site().neutrals) for loc in last_best.path])
 		while (len(last_best.path[0].site().enemies) > 0 or any([len(loc.site().enemies) > 0 for loc in last_best.path[1:]])) and len(self.trails) > 1:
-			logger.debug("Eliminating %s" % last_best)
+#			logger.debug("Eliminating %s" % last_best)
 			heapq.heappop(self.trails)
 			last_best = self.trails[0]
 		
 		if not self.trails:
-			# logger.debug("Returning %s, %s remaining" % (None, len(self.trails)))
+#			# logger.debug("Returning %s, %s remaining" % (None, len(self.trails)))
 			return None
-		# logger.debug("Returning %s, %s remaining" % (last_best, len(self.trails)))
+#		# logger.debug("Returning %s, %s remaining" % (last_best, len(self.trails)))
 		return last_best
 		
 	def peer_deeper(self):
@@ -88,20 +88,20 @@ class Location:
 		# depth = 10
 		
 		old_trails = list(self.expanding_trails)
-		# logger.debug("Expanding...\n%s" % "\n".join([trail.__str__() for trail in self.expanding_trails]) )
+#		# logger.debug("Expanding...\n%s" % "\n".join([trail.__str__() for trail in self.expanding_trails]) )
 		for trail in list(self.expanding_trails):
 			if self.gameMap().clock and (timer()-self.gameMap().clock > .95):
-				logger.debug("WHOA! Time is running out %s! abort!" % (timer()-self.gameMap().clock))
+#				logger.debug("WHOA! Time is running out %s! abort!" % (timer()-self.gameMap().clock))
 				break
 			self.expanding_trails.remove(trail)
-			# logger.debug("Pulled out %s" % trail )
+#			# logger.debug("Pulled out %s" % trail )
 			if len(trail) > 1:
 				heapq.heappush(self.trails, trail)
 			if len(trail) >= depth:
 				continue
 			children = trail.get_child_trails()
 			if children:
-				# logger.debug("Put in %s" % trail )
+#				# logger.debug("Put in %s" % trail )
 				self.expanding_trails.extend(children)
 	
 	def can_explore(self):
@@ -123,9 +123,6 @@ class Site:
 		self.enemy_str = 0
 		from claim import ClaimHeap
 		self.heap = ClaimHeap(self)
-		
-	def is_mine(self):
-		return self.loc.gameMap().playerTag == self.owner
 
 	
 	def valOrDot(self, value, dotValue):
@@ -180,7 +177,7 @@ class Trail:
 		self.path.append(new_loc)
 		self.gameMap = weakref.ref(new_loc.gameMap())
 		self.value = self.benefit * 1.0/ self.cost
-		# logger.debug("Trail %s" % self)
+#		# logger.debug("Trail %s" % self)
 		
 	
 	def get_child_trails(self):
@@ -217,16 +214,16 @@ class Trail:
 			
 		benefit = 0
 		cost = 0
-		# logger.debug("Old value is %s" % self.value)
+#		# logger.debug("Old value is %s" % self.value)
 		for i in range(len(self.path),0,-1):
 			benefit += balance.evalSiteProduction(self.path[i-1].site())
 			cost += balance.evalSiteStrength(self.path[i-1].site())
-			# logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
+#			# logger.debug("last threshhold_values being set to %s" % (benefit * 1.0/ cost))
 			self.threshhold_values.append(benefit  * 1.0/ cost)
-			# logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
+#			# logger.debug("last threshhold_values now %s" % self.threshhold_values[-1])
 		self.threshhold_values.reverse()
 		for i in range(len(self.threshhold_values)):
-			# logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
+#			# logger.debug("New value %s is %s" % (i,self.threshhold_values[i]))
 			pass
 		
 	def get_value(self, strength = 0):
@@ -287,15 +284,15 @@ class Trail:
 			if base < self.threshholds[i] and base + delta >= self.threshholds[i]:
 				if not first_threshhold_passed:
 					first_threshhold_passed = i
-					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
+#					logger.debug("first_threshhold_passed is %s with strength %s" % (i,self.threshholds[i]))
 				
 				if self.gameMap().chunkedpull:
 					if i < len(self.threshholds) - 1:
 						wait_turns = math.ceil((self.threshholds[i+1]-base-delta) * 1.0/ production)
 						missed_production += self.path[i].site.production * (wait_turns * (i-first_threshhold_passed) - 1)
-						logger.debug("There is another threshhold beyond this one but I'd need to wait %s turns more, missing %s production" % (wait_turns, missed_production))
+#						logger.debug("There is another threshhold beyond this one but I'd need to wait %s turns more, missing %s production" % (wait_turns, missed_production))
 						move_lost_production = production*(i-first_threshhold_passed+1)
-						logger.debug("If I don't grab them together though, I'll lose %s" % (move_lost_production))
+#						logger.debug("If I don't grab them together though, I'll lose %s" % (move_lost_production))
 						if missed_production > move_lost_production:
 							return True
 					else:
@@ -332,7 +329,7 @@ class Territory:
 		self.territory.add(location)
 		self.production += site.production
 		self.strength += site.strength
-		# logger.debug("Adding %s production from %s to %s's territory - now %s" % (site.production, location, self.owner, self.production) )
+#		# logger.debug("Adding %s production from %s to %s's territory - now %s" % (site.production, location, self.owner, self.production) )
 		
 
 	def getLocations(self):
@@ -360,7 +357,7 @@ class GameMap:
 		for y in range(0, self.height):
 			row = []
 			for x in range(0, self.width):
-				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
+#				# logger.debug("Creating site and Loc for %s, %s" % (x,y))
 				l = self.getLocationXY(x,y)
 				row.append(Site(0, 0, 0, loc = l))
 				l.gameMap = weakref.ref(self)
@@ -371,7 +368,7 @@ class GameMap:
 		return l.x >= 0 and l.x < self.width and l.y >= 0 and l.y < self.height
 		
 	def num_non_friends(self, loc):
-		# logger.debug("Found %s non_friends" % (len(loc.site().empties) + len(loc.site().enemies)) )
+#		# logger.debug("Found %s non_friends" % (len(loc.site().empties) + len(loc.site().enemies)) )
 		return len(loc.site().empties) + len(loc.site().enemies)
 	
 	def updateCounts(self, owner, loc):
@@ -435,58 +432,58 @@ class GameMap:
 		return dir
 
 	def getLocation(self, loc, direction = STILL):
-		# logger.debug("Getting loc %s, with direction %s" % (loc, direction) )
+#		# logger.debug("Getting loc %s, with direction %s" % (loc, direction) )
 		if not direction:
 			return loc
 		dirAttr = "HNESW"[direction]
-		# logger.debug("Checking NEW loc %s, with direction %s" % (loc, dirAttr) )
+#		# logger.debug("Checking NEW loc %s, with direction %s" % (loc, dirAttr) )
 		if not getattr(loc, dirAttr):
-			# logger.debug("Getting NEW loc %s, with direction %s" % (loc, direction) )
+#			# logger.debug("Getting NEW loc %s, with direction %s" % (loc, direction) )
 			x = loc.x
 			y = loc.y
 			if direction == NORTH:
-				# logger.debug("Direction: %s"  % (direction) )
+#				# logger.debug("Direction: %s"  % (direction) )
 				if y == 0:
 					y = self.height - 1
 				else:
 					y -= 1
 			elif direction == EAST:
-				# logger.debug("Direction: %s"  % (direction) )
+#				# logger.debug("Direction: %s"  % (direction) )
 				if x == self.width - 1:
 					x = 0
 				else:
 					x += 1
 			elif direction == SOUTH:
-				# logger.debug("Direction: %s"  % (direction) )
+#				# logger.debug("Direction: %s"  % (direction) )
 				if y == self.height - 1:
 					y = 0
 				else:
 					y += 1
 			elif direction == WEST:
-				# logger.debug("Direction: %s"  % (direction) )
+#				# logger.debug("Direction: %s"  % (direction) )
 				if x == 0:
 					x = self.width - 1
 				else:
 					x -= 1
 			else:
-				# logger.debug("Shouldn't have gotten here" )
+#				# logger.debug("Shouldn't have gotten here" )
 				pass
-			# logger.debug("x,y %s,%s" % (x,y) )
+#			# logger.debug("x,y %s,%s" % (x,y) )
 			new_loc = self.getLocationXY(x,y)
-			# logger.debug("Saving the %s" % new_loc )
+#			# logger.debug("Saving the %s" % new_loc )
 			setattr(loc, dirAttr, new_loc )
 			# oppDirAttr = "HNESW"[getOppositeDir(direction)]
 			# setattr(new_loc, oppDirAttr, loc)
-		# logger.debug("Returning NEW loc %s, with direction %s" % (loc, direction) )
+#		# logger.debug("Returning NEW loc %s, with direction %s" % (loc, direction) )
 		return getattr(loc, dirAttr)
 		
 	def getLocationXY(self, x, y):
 		loc_key = y*self.width+x
-		# logger.debug("Finding location for key %s" % loc_key)
+#		# logger.debug("Finding location for key %s" % loc_key)
 		if loc_key not in location_cache:
 			location_cache[loc_key] = Location(x,y)
 		
-		# logger.debug("Returning location for key %s" % loc_key)
+#		# logger.debug("Returning location for key %s" % loc_key)
 		return location_cache[loc_key]
 		
 	def neighbors(self, loc, n=1, include_self=False):
@@ -494,7 +491,7 @@ class GameMap:
 		if loc not in neighbor_range_cache:
 			neighbor_range_cache[loc] = {}
 		if n not in neighbor_range_cache[loc]:
-			# logger.debug("Neighbor cache miss")
+#			# logger.debug("Neighbor cache miss")
 			if n == 0:
 				if include_self:
 					neighbor_range_cache[loc][n] = [loc]
@@ -513,7 +510,7 @@ class GameMap:
 		return [loc.site() for loc in neighbor_range_cache[loc][n]]
 		
 	def getSite(self, l, direction = STILL):
-		#logger.debug("getSite")
+#		#logger.debug("getSite")
 		if not direction:
 			return l.site()
 		l = self.getLocation(l, direction)
@@ -523,9 +520,9 @@ class GameMap:
 		if owner is None:
 			owner = self.playerTag
 		if not self.territories.get(owner):
-			# logger.debug("Creating territory for owner %s")
+#			# logger.debug("Creating territory for owner %s")
 			self.territories[owner] = Territory(owner, self)
-		# logger.debug("Found %s territory for owner %s" % (len(self.territories[owner].territory), owner))
+#		# logger.debug("Found %s territory for owner %s" % (len(self.territories[owner].territory), owner))
 		return self.territories[owner]
 	
 	def getEnemyTerritories(self, owner = None):
@@ -557,7 +554,7 @@ class GameMap:
 		for loc in set:
 			for other_loc in other_set:
 				pair = DistPair(loc, other_loc)
-				logger.debug("Pushing %s" % pair)
+#				logger.debug("Pushing %s" % pair)
 				heapq.heappush(pair)
 		
 		return heap[0]
@@ -576,7 +573,7 @@ class GameMap:
 		if damage_dealable:
 			max_damage = loc.site().strength
 		while curr and dist:
-			# logger.debug("Checking dist %s" % dist)
+#			logger.debug("Checking dist %s" % dist)
 			dist -= 1
 			next = []
 			for l in curr:
@@ -586,10 +583,10 @@ class GameMap:
 				type_list = getattr(l.site(), type)
 				sites = [move.loc.site() for move in type_list]
 				if sites:
-					# logger.debug("Found %s sites: %s" % (type,debug_list([site.loc for site in sites])))
+#					logger.debug("Found %s sites: %s" % (type,debug_list([site.loc for site in sites])))
 					pass
 				for site in sites:
-					# logger.debug("checking %s, %s with str %s"%(site.owner, site.loc, site.strength))
+#					logger.debug("checking %s, %s with str %s"%(site.owner, site.loc, site.strength))
 					if site.loc not in next and site.loc not in done:
 						if site.owner == self.playerTag and type == "friends":
 							next.append(site.loc)
@@ -600,11 +597,11 @@ class GameMap:
 								strength += min([site.strength, max_damage])
 							else:
 								strength += site.strength + dist * site.production
-			# logger.debug("curr of get_friendly_strength: %s" % debug_list(curr))
+#			logger.debug("curr of get_friendly_strength: %s" % debug_list(curr))
 			curr = next
-			# logger.debug("next of get_friendly_strength: %s" % debug_list(curr))
+#			logger.debug("next of get_friendly_strength: %s" % debug_list(curr))
 			done.update(curr)
-		# logger.debug("Found %s strength in %s dist of %s of type %s" % (strength, dist, loc, type))
+#		logger.debug("Found %s strength in %s dist of %s of type %s" % (strength, dist, loc, type))
 		return strength
 		
 	def __exit__(self):
@@ -621,7 +618,7 @@ class GameMap:
 	#	while len(this_wave) > 0:
 	#		next_wave = []
 	#		for loc in this_wave:
-	#			logger.debug("Spreading location to check: %s" % loc)
+#	#			logger.debug("Spreading location to check: %s" % loc)
 	#			spread_locs = [self.getSite(loc, d).loc for d in CARDINALS if not self.getSite(loc, d).loc in already_waved]
 	#			for spread_loc in spread_locs:
 	#				next_wave.append(spread_loc)
@@ -629,8 +626,8 @@ class GameMap:
 	#				self.local_maxima.append(loc)
 	#		already_waved.extend(this_wave)
 	#		this_wave = next_wave
-	#		logger.debug("Local Maxima: %s" % debug_list(this_wave))
-	#	logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
+#	#		logger.debug("Local Maxima: %s" % debug_list(this_wave))
+#	#	logger.debug("Local Maxima: %s" % debug_list(self.local_maxima))
 		used_tiles = set()
 		for tile in [self.getLocationXY(x,y) for x in range(self.width) for y in range(self.height)]:
 			if tile not in used_tiles:
@@ -641,32 +638,32 @@ class GameMap:
 				while spread_set:
 					next_set = list(spread_set)
 					spread_set = set()
-					# logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
+#					# logger.debug("Spreading out from spread_set: %s" % debug_list(next_set))
 					for loc in next_set:
 						for neighbor in [self.getLocation(loc, d) for d in CARDINALS]:
 
 							if neighbor.site.production > loc.site().production:
 								if not spoiled:
-									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
+#									# logger.debug("Set was spoiled by higher proudction at: %s" % neighbor)
 									spoiled = True
 							elif neighbor in used_tiles or neighbor in this_set:
 								continue
 							elif neighbor.site.production == loc.site().production:
-								# logger.debug("Spreading to: %s" % neighbor)
+#								# logger.debug("Spreading to: %s" % neighbor)
 								spread_set.add(neighbor)
 					this_set.update(spread_set)
 						
 				if not spoiled:
-					# logger.debug("Found a local maxima set: %s" % debug_list(this_set))
+#					# logger.debug("Found a local maxima set: %s" % debug_list(this_set))
 					self.local_maxima.append(this_set)
 				else:
-					# logger.debug("Spoiled set completed: %s" % debug_list(this_set))
+#					# logger.debug("Spoiled set completed: %s" % debug_list(this_set))
 					pass
 				used_tiles.update(this_set)
 		
-		logger.debug("Maxima sets:")
+#		logger.debug("Maxima sets:")
 		for maxima in self.local_maxima:
-			logger.debug("%s" % debug_list(maxima))
+#			logger.debug("%s" % debug_list(maxima))
 			pass
 		return self.local_maxima
 		
@@ -688,29 +685,29 @@ class GameMap:
 	def defineTerritories(self):
 		for t in self.getTerritories():
 			for loc in t.territory:
-				#logger.debug("Territory Loc: %s" % loc)
+#				#logger.debug("Territory Loc: %s" % loc)
 				site = loc.site()
 				
 				# we can't do it during the parsing because the owners come through before the strenghts
 				# but this means empties don't work for neutrals because I'm not sure it's worth swinging back through all the neutrals
-				# logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
+#				# logger.debug("Adding %s strength from %s to %s's territory - now %s" % (site.strength, location, self.owner, self.strength) )
 				t.strength += site.strength
 				site.empties = [move for move in site.neutrals if not move.loc.site().strength]
 				
 				
-				#logger.debug("Friends: %s" % debug_list(site.friends))
-				# logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
-				# logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
-				#logger.debug("Enemies: %s" % debug_list(site.enemies))
+#				#logger.debug("Friends: %s" % debug_list(site.friends))
+#				# logger.debug("Neutrals of %s: %s" % (loc, debug_list(site.neutrals)))
+#				# logger.debug("Empties of %s: %s" % (loc, debug_list(site.empties)))
+#				#logger.debug("Enemies: %s" % debug_list(site.enemies))
 				if t.owner == t.gameMap().playerTag:
 					moveset = site.friends
 				else:
 					moveset = site.enemies
 				dirs = [ getOppositeDir(d) for move in moveset for d in move.getDirections()]
-				#logger.debug("fdirs: %s" % fdirs)
+#				#logger.debug("fdirs: %s" % fdirs)
 				for dir in [d for d in CARDINALS if not d in dirs]:
 					new_loc = self.getLocation(loc, dir)
-					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
+#					#logger.debug("Neutral: %s->%s" % (new_loc,dir))
 					t.addFringe(new_loc)
 					self.setupFringeLoc(new_loc)
 					t.addFrontier(loc)

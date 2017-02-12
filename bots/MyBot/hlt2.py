@@ -123,6 +123,9 @@ class Site:
 		self.enemy_str = 0
 		from claim import ClaimHeap
 		self.heap = ClaimHeap(self)
+		
+	def is_mine(self):
+		return self.loc.gameMap().playerTag == self.owner
 
 	
 	def valOrDot(self, value, dotValue):
@@ -577,6 +580,9 @@ class GameMap:
 			dist -= 1
 			next = []
 			for l in curr:
+				# Always look through empties
+				empty_list = [move.loc for move in getattr(l.site(), "empties")]
+				next.extend(empty_list)
 				type_list = getattr(l.site(), type)
 				sites = [move.loc.site() for move in type_list]
 				if sites:
@@ -585,9 +591,7 @@ class GameMap:
 				for site in sites:
 #					# logger.debug("checking %s, %s with str %s"%(site.owner, site.loc, site.strength))
 					if site.loc not in next and site.loc not in done:
-						if not site.owner and not site.strength:
-							next.append(site.loc)
-						elif site.owner == self.playerTag and type == "friends":
+						if site.owner == self.playerTag and type == "friends":
 							next.append(site.loc)
 							strength += site.strength + dist * site.production
 						elif site.owner and site.owner != self.playerTag and type == "enemies":

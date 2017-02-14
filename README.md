@@ -1,5 +1,5 @@
 ___Summary of bot functionality___
-Please contact me on [discord](https://discordapp.com/channels/248237939123945493/248237939123945493) or the [forums](http://forums.halite.io/)
+Ask me any questions on [discord](https://discordapp.com/channels/248237939123945493/248237939123945493) or the [forums](http://forums.halite.io/). No, really, please ask.
 
 __Networking2.py__
 
@@ -45,6 +45,8 @@ Artifacts of earlier designs like a MoveFork, or moves with multiple directions.
 __MyBot.py__
 
 Contains the orchestration login between different subsystems. At one point, I was timing out frequently, so I decided to use the full duration of my early game seconds to evaluate *Trails* rather than wait until I was time-crunched later. I spawned a second thread at a couple of point to churn through the nearby tiles I would need in future turns. I tossed those in a persistent heap for the given tile so I could just pull off the top of that as I needed them. If the first path was no longer valid (i.e. ran into enemy or my *territory* or had 0 strength, I just used the next. This let me get a more accurately forward looking valuation of my *fringe* and keep it for future turns.
+
+PS - I tried switching to Cython (couldn't get it to work on windows for python 3.5 or 2.7). Tried Pypy to make it faster, code went slower.
 
 __Tools__
 
